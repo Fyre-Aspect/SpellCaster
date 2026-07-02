@@ -2,7 +2,8 @@ import { snippets, BLANK_MARKER } from "./snippets.js";
 import { checkAnswers } from "./checker.js";
 import {
   state,
-  resetState,
+  startRun,
+  currentSnippet,
   recordCorrectSnippet,
   recordWrongSubmit,
   STARTING_LIVES,
@@ -10,6 +11,19 @@ import {
 
 const hudEl = document.querySelector("#hud");
 const gameEl = document.querySelector("#game");
+const hintToggleEl = document.querySelector("#hint-toggle");
+
+let hintsEnabled = false;
+let currentInputs = [];
+let currentAnswers = [];
+
+function applyHints() {
+  hintToggleEl.textContent = hintsEnabled ? "💡 Answers: On" : "💡 Answers: Off";
+  hintToggleEl.setAttribute("aria-pressed", String(hintsEnabled));
+  currentInputs.forEach((input, i) => {
+    input.placeholder = hintsEnabled ? (currentAnswers[i] ?? "") : "";
+  });
+}
 
 function hudItem(label, value) {
   const item = document.createElement("span");
@@ -26,10 +40,10 @@ function hudItem(label, value) {
 
 function renderHud() {
   const hearts =
-    "♥".repeat(state.lives) + "♡".repeat(STARTING_LIVES - state.lives);
+    "❤️".repeat(state.lives) + "🖤".repeat(STARTING_LIVES - state.lives);
   hudEl.replaceChildren(
-    hudItem("Score", state.score),
-    hudItem("Combo", `×${state.combo}`),
+    hudItem("Score", `⭐ ${state.score}`),
+    hudItem("Combo", `🔥 ×${state.combo}`),
     hudItem("Lives", hearts)
   );
 }
@@ -66,6 +80,10 @@ function renderSnippet(snippet, container) {
     if (event.key === "Enter") submitAnswers(snippet, inputs);
   });
 
+  currentInputs = inputs;
+  currentAnswers = snippet.answers;
+  applyHints();
+
   pre.append(code);
   container.replaceChildren(pre);
   inputs[0]?.focus();
@@ -74,14 +92,25 @@ function renderSnippet(snippet, container) {
 function renderGameOver(container) {
   const panel = document.createElement("div");
   panel.className = "game-over";
+  const emoji = document.createElement("p");
+  emoji.className = "game-over-emoji";
+  emoji.textContent = state.runComplete ? "🏆" : "💀";
   const title = document.createElement("p");
-  title.className = "game-over-title";
-  title.textContent = "Game Over";
+  title.className = state.runComplete
+    ? "game-over-title win"
+    : "game-over-title";
+  title.textContent = state.runComplete ? "RUN COMPLETE!" : "GAME OVER";
   const scoreLine = document.createElement("p");
   scoreLine.className = "game-over-score";
-  scoreLine.textContent = `Final score: ${state.score}`;
-  panel.append(title, scoreLine);
+  scoreLine.textContent = `Final score: ⭐ ${state.score}`;
+  const again = document.createElement("button");
+  again.type = "button";
+  again.className = "btn";
+  again.textContent = "🔄 Play Again";
+  again.addEventListener("click", startGame);
+  panel.append(emoji, title, scoreLine, again);
   container.replaceChildren(panel);
+  again.focus();
 }
 
 function submitAnswers(snippet, inputs) {
@@ -92,23 +121,43 @@ function submitAnswers(snippet, inputs) {
     snippet.answers
   );
   inputs.forEach((input, i) => {
-    input.classList.toggle("correct", results[i]);
-    input.classList.toggle("wrong", !results[i]);
+    input.classList.remove("correct", "wrong");
+    void input.offsetWidth; // restart the pop/shake animation on repeat submits
+    input.classList.add(results[i] ? "correct" : "wrong");
   });
 
   if (results.every(Boolean)) {
     inputs.forEach((input) => (input.disabled = true));
-    recordCorrectSnippet(snippet.difficulty, snippets.length);
+    recordCorrectSnippet();
     renderHud();
-    setTimeout(() => renderSnippet(snippets[state.snippetIndex], gameEl), 600);
+    setTimeout(() => {
+      if (state.gameOver) {
+        renderGameOver(gameEl);
+      } else {
+        renderSnippet(currentSnippet(), gameEl);
+      }
+    }, 600);
   } else {
     recordWrongSubmit();
     renderHud();
-    if (state.gameOver) renderGameOver(gameEl);
+    if (state.gameOver) {
+      renderGameOver(gameEl);
+    } else {
+      inputs[results.indexOf(false)]?.focus();
+    }
   }
 }
 
+function startGame() {
+  startRun(snippets);
+  renderHud();
+  renderSnippet(currentSnippet(), gameEl);
+}
+
+hintToggleEl.addEventListener("click", () => {
+  hintsEnabled = !hintsEnabled;
+  applyHints();
+});
+
 console.log("snippets loaded:", snippets.length);
-resetState();
-renderHud();
-renderSnippet(snippets[state.snippetIndex], gameEl);
+startGame();
