@@ -43,11 +43,29 @@ body {
 }
 
 .blank {
-  display: inline-block;
-  min-width: 5ch;
-  height: 1.5em;
-  vertical-align: text-bottom;
+  font: inherit;
+  color: inherit;
   background: rgba(167, 139, 250, 0.12);
   border: 1px dashed #8b76e0;
   border-radius: 4px;
+  padding: 0.1em 0.3ch;
+  text-align: center;
+}
+
+.blank:focus {
+  outline: none;
+  border-style: solid;
+  background: rgba(167, 139, 250, 0.22);
+}
+
+.blank.correct {
+  border: 1px solid #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+  color: #4ade80;
+}
+
+.blank.wrong {
+  border: 1px solid #f87171;
+  background: rgba(248, 113, 113, 0.12);
+  color: #f87171;
 }
