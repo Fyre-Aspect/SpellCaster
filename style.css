@@ -29,3 +29,25 @@ body {
 #game {
   width: min(720px, 90vw);
 }
+
+.snippet {
+  margin: 0;
+  padding: 1.25rem 1.5rem;
+  background: #171a23;
+  border: 1px solid #2a2f40;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 1.05rem;
+  line-height: 2;
+  overflow-x: auto;
+}
+
+.blank {
+  display: inline-block;
+  min-width: 5ch;
+  height: 1.5em;
+  vertical-align: text-bottom;
+  background: rgba(167, 139, 250, 0.12);
+  border: 1px dashed #8b76e0;
+  border-radius: 4px;
+}
