@@ -215,3 +215,67 @@ body {
     transform: translateX(5px);
   }
 }
+
+.timerbar {
+  height:14px;
+  width: 100%;
+  background: var(--green);
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 0 4px 0 var(--ink);
+  margin-bottom: 1rem;
+  transition: width 0.05s linear, background 0.2s ease;
+}
+
+.timerbar.low {
+  background: var(--yellow);
+}
+
+#flash{
+  position: fixed;
+  inset: 0;
+  background: var(--yellow);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.flash-correct {
+  background: radial-gradient(circle at center, rgba(61,220,132));
+  animation: flash-fade 0.45s ease;
+}
+
+.flash-miss {
+  background: radial-gradient(circle at center, rgba(255,93,93));
+  animation: flash-fade 0.45s ease;
+}
+
+@keyframes flash-fade {
+  0% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.combo-popup {
+  position: fixed;
+  top: 45%;
+  left: 50%;
+  z-index: 60;
+  pointer-events:none;
+  font-weight: 900;
+  font-size: 2rem;
+  color: var(--yellow);
+  text-shadow: 3px 3px 0 var(--ink);
+  animation: combo-float 0.9s ease forwards;
+
+}
+
+
+@keyframes combo-float {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(0.6); }
+  25% { opacity: 1; transform: translate(-50%, -20px) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -80px) scale(1); }
+}
+
