@@ -96,7 +96,13 @@ export default function CodePanel({ game }) {
           </motion.div>
         )}
       </AnimatePresence>
-      <pre className="code">
+      <motion.pre
+        key={game.round}
+        className="code"
+        initial={reduced ? { opacity: 0 } : { opacity: 0, x: 26 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.18, ease: "easeOut" }}
+      >
         {segments.map((seg, i) => {
           if (seg.type === "text") {
             return <span key={`t${i}`}>{seg.value}</span>;
@@ -125,7 +131,7 @@ export default function CodePanel({ game }) {
             />
           );
         })}
-      </pre>
+      </motion.pre>
       {!showAnswers && (
         <div className="peek-row">
           <button

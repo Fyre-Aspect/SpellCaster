@@ -14,6 +14,10 @@ export default function App() {
           <Menu
             key="menu"
             best={game.best}
+            selectedMode={game.selectedMode}
+            onSelectMode={game.selectMode}
+            difficulty={game.difficulty}
+            onSelectDifficulty={game.selectDifficulty}
             showAnswers={game.showAnswers}
             onToggleAnswers={game.toggleAnswers}
             onStart={game.start}
@@ -33,6 +37,7 @@ export default function App() {
             key="finished"
             result={game.result}
             onRaceAgain={game.raceAgain}
+            onMenu={game.toMenu}
           />
         )}
       </AnimatePresence>

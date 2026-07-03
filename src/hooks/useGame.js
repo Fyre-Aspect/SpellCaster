@@ -12,21 +12,58 @@ import {
   totalAnswerChars,
 } from "../data/snippets.js";
 import { checkAnswer, correctCharCount } from "../logic/typing.js";
-import { computeAccuracy, computeWpm, createBot } from "../logic/race.js";
-import { gameReducer, initialState } from "../logic/machine.js";
+import {
+  BOT_DIFFICULTIES,
+  computeAccuracy,
+  computeWpm,
+  createBot,
+} from "../logic/race.js";
+import { gameReducer, initialState, MODES } from "../logic/machine.js";
 
-const BEST_KEY = "spellcaster.best.v1";
 const ANSWERS_KEY = "spellcaster.show-answers.v1";
+const MODE_KEY = "spellcaster.mode.v1";
+const DIFFICULTY_KEY = "spellcaster.difficulty.v1";
 const PEEK_PENALTY_CHARS = 4;
 const COMBO_STEP = 10;
 const COMBO_VISIBLE_MS = 1000;
 
-function loadBest() {
+function bestKeyFor(mode, difficulty) {
+  return mode === "race"
+    ? `spellcaster.best.race.${difficulty}.v1`
+    : `spellcaster.best.${mode}.v1`;
+}
+
+function loadJson(key) {
   try {
-    const raw = localStorage.getItem(BEST_KEY);
+    const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
+  }
+}
+
+function saveJson(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+function loadChoice(key, fallback, validValues) {
+  try {
+    const value = localStorage.getItem(key);
+    return validValues.includes(value) ? value : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveChoice(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* storage unavailable */
   }
 }
 
@@ -47,6 +84,8 @@ function emptyLive() {
     wpm: 0,
     accuracy: 100,
     elapsed: 0,
+    remaining: null,
+    snippets: 0,
     streak: 0,
     combo: null,
     errorPing: 0,
@@ -57,24 +96,39 @@ function emptyLive() {
 export default function useGame() {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const [live, setLive] = useState(emptyLive);
-  const [best, setBest] = useState(loadBest);
   const [count, setCount] = useState(null);
   const [peekHeld, setPeekHeld] = useState(false);
   const [showAnswers, setShowAnswers] = useState(loadShowAnswers);
+  const [selectedMode, setSelectedMode] = useState(() =>
+    loadChoice(MODE_KEY, "race", Object.keys(MODES))
+  );
+  const [difficulty, setDifficulty] = useState(() =>
+    loadChoice(DIFFICULTY_KEY, "medium", Object.keys(BOT_DIFFICULTIES))
+  );
+  const [bestBump, setBestBump] = useState(0);
   const dataRef = useRef(null);
   const comboTimerRef = useRef(null);
 
   const snippet = useMemo(() => snippetForRound(state.round), [state.round]);
   const segments = useMemo(() => parseTemplate(snippet.template), [snippet]);
 
+  const bestKey = bestKeyFor(selectedMode, difficulty);
+  const best = useMemo(() => loadJson(bestKey), [bestKey, bestBump]);
+
   const syncLive = useCallback(() => {
     const d = dataRef.current;
     if (!d) return;
     const expected = d.answers[d.blankIndex] ?? "";
-    const typedCorrect = d.completedChars + correctCharCount(d.typed, expected);
-    const effective = Math.max(0, typedCorrect - d.penaltyChars);
-    let playerProgress = Math.min(1, effective / d.total);
-    let botProgress = Math.min(1, d.botChars / d.total);
+    const snippetCorrect = d.completedChars + correctCharCount(d.typed, expected);
+    const runCorrect = d.runChars + snippetCorrect;
+    let playerProgress;
+    if (d.mode === "race") {
+      const effective = Math.max(0, snippetCorrect - d.penaltyChars);
+      playerProgress = Math.min(1, effective / d.total);
+    } else {
+      playerProgress = Math.min(1, snippetCorrect / d.total);
+    }
+    let botProgress = d.mode === "race" ? Math.min(1, d.botChars / d.total) : 0;
     if (d.finished && d.winner === "player") playerProgress = 1;
     if (d.finished && d.winner === "bot") botProgress = 1;
     setLive({
@@ -82,9 +136,11 @@ export default function useGame() {
       typed: d.typed,
       playerProgress,
       botProgress,
-      wpm: computeWpm(typedCorrect, d.elapsed),
+      wpm: computeWpm(runCorrect, d.elapsed),
       accuracy: computeAccuracy(d.correctKeystrokes, d.keystrokes),
       elapsed: d.elapsed,
+      remaining: d.timeLimit != null ? Math.max(0, d.timeLimit - d.elapsed) : null,
+      snippets: d.snippetsCompleted,
       streak: d.streak,
       combo: d.combo,
       errorPing: d.errorPing,
@@ -102,6 +158,8 @@ export default function useGame() {
       const typedCorrect =
         d.completedChars + correctCharCount(d.typed, expected);
       const stats = {
+        mode: "race",
+        difficulty: d.difficulty,
         winner,
         timeSeconds: d.elapsed,
         wpm: computeWpm(typedCorrect, d.elapsed),
@@ -111,15 +169,11 @@ export default function useGame() {
         newBest: false,
       };
       if (winner === "player") {
-        const prev = loadBest();
+        const key = bestKeyFor("race", d.difficulty);
+        const prev = loadJson(key);
         if (!prev || stats.wpm > prev.wpm) {
-          const next = { wpm: stats.wpm, timeSeconds: stats.timeSeconds };
-          try {
-            localStorage.setItem(BEST_KEY, JSON.stringify(next));
-          } catch {
-            /* storage unavailable */
-          }
-          setBest(next);
+          saveJson(key, { wpm: stats.wpm, timeSeconds: stats.timeSeconds });
+          setBestBump((b) => b + 1);
           stats.newBest = true;
         }
       }
@@ -129,11 +183,52 @@ export default function useGame() {
     [syncLive]
   );
 
+  const finishRun = useCallback(() => {
+    const d = dataRef.current;
+    if (!d || d.finished || d.mode === "race") return;
+    d.finished = true;
+    d.winner = null;
+    if (d.timeLimit != null && d.elapsed > d.timeLimit) d.elapsed = d.timeLimit;
+    const expected = d.answers[d.blankIndex] ?? "";
+    const runCorrect =
+      d.runChars + d.completedChars + correctCharCount(d.typed, expected);
+    const score = Math.max(0, runCorrect - d.penaltyChars);
+    const stats = {
+      mode: d.mode,
+      winner: null,
+      timeSeconds: d.elapsed,
+      wpm: computeWpm(runCorrect, d.elapsed),
+      accuracy: computeAccuracy(d.correctKeystrokes, d.keystrokes),
+      snippets: d.snippetsCompleted,
+      chars: score,
+      round: d.round,
+      snippetId: d.snippet.id,
+      newBest: false,
+    };
+    const key = bestKeyFor(d.mode);
+    const prev = loadJson(key);
+    if (d.mode === "endless") {
+      if (d.snippetsCompleted >= 1 && (!prev || stats.wpm > prev.wpm)) {
+        saveJson(key, { wpm: stats.wpm, snippets: stats.snippets });
+        setBestBump((b) => b + 1);
+        stats.newBest = true;
+      }
+    } else if (score > 0 && (!prev || score > prev.chars)) {
+      saveJson(key, { chars: score, wpm: stats.wpm });
+      setBestBump((b) => b + 1);
+      stats.newBest = true;
+    }
+    syncLive();
+    dispatch({ type: "FINISH", stats });
+  }, [syncLive]);
+
   const initRace = useCallback(
-    (round) => {
+    (round, mode, difficultyId) => {
       const s = snippetForRound(round);
       if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
       dataRef.current = {
+        mode,
+        difficulty: difficultyId,
         round,
         snippet: s,
         answers: s.answers,
@@ -141,6 +236,8 @@ export default function useGame() {
         blankIndex: 0,
         typed: "",
         completedChars: 0,
+        runChars: 0,
+        snippetsCompleted: 0,
         penaltyChars: 0,
         peekedBlanks: new Set(),
         keystrokes: 0,
@@ -151,7 +248,8 @@ export default function useGame() {
         errorPing: 0,
         botChars: 0,
         elapsed: 0,
-        bot: createBot(),
+        bot: mode === "race" ? createBot(BOT_DIFFICULTIES[difficultyId]) : null,
+        timeLimit: MODES[mode].timeLimit ?? null,
         finished: false,
         winner: null,
       };
@@ -160,6 +258,21 @@ export default function useGame() {
     },
     [syncLive]
   );
+
+  const advanceSnippet = useCallback((d) => {
+    d.runChars += d.total;
+    d.snippetsCompleted += 1;
+    d.round += 1;
+    const s = snippetForRound(d.round);
+    d.snippet = s;
+    d.answers = s.answers;
+    d.total = totalAnswerChars(s.answers);
+    d.blankIndex = 0;
+    d.typed = "";
+    d.completedChars = 0;
+    d.peekedBlanks = new Set();
+    dispatch({ type: "NEXT_SNIPPET" });
+  }, []);
 
   const applyPeekPenalty = useCallback(() => {
     const d = dataRef.current;
@@ -208,18 +321,21 @@ export default function useGame() {
         d.blankIndex += 1;
         d.typed = "";
         if (d.blankIndex >= d.answers.length) {
-          finishRace("player");
-          return;
+          if (d.mode === "race") {
+            finishRace("player");
+            return;
+          }
+          advanceSnippet(d);
         }
       }
       syncLive();
     },
-    [finishRace, syncLive]
+    [advanceSnippet, finishRace, syncLive]
   );
 
   useEffect(() => {
     if (state.screen !== "countdown") return;
-    initRace(state.round);
+    initRace(state.round, state.mode, difficulty);
     setCount(3);
     const timers = [
       setTimeout(() => setCount(2), 750),
@@ -231,7 +347,7 @@ export default function useGame() {
       timers.forEach(clearTimeout);
       setCount(null);
     };
-  }, [state.screen, state.round, initRace]);
+  }, [state.screen, state.round, state.mode, difficulty, initRace]);
 
   useEffect(() => {
     if (state.screen !== "racing") return;
@@ -243,22 +359,35 @@ export default function useGame() {
       const d = dataRef.current;
       if (d && !d.finished) {
         d.elapsed += dt;
-        d.botChars += d.bot.tick(dt);
-        if (d.botChars >= d.total) finishRace("bot");
-        else syncLive();
+        if (d.mode === "race") {
+          d.botChars += d.bot.tick(dt);
+          if (d.botChars >= d.total) finishRace("bot");
+          else syncLive();
+        } else if (d.timeLimit != null && d.elapsed >= d.timeLimit) {
+          finishRun();
+        } else {
+          syncLive();
+        }
       }
       rafId = requestAnimationFrame(frame);
     };
     rafId = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(rafId);
-  }, [state.screen, finishRace, syncLive]);
+  }, [state.screen, finishRace, finishRun, syncLive]);
 
   useEffect(() => {
     function onKeyDown(e) {
       if (state.screen === "menu") {
         if (e.key === "Enter") {
           e.preventDefault();
-          dispatch({ type: "START" });
+          dispatch({ type: "START", mode: selectedMode });
+        }
+        return;
+      }
+      if (state.screen === "countdown") {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          dispatch({ type: "ABORT" });
         }
         return;
       }
@@ -267,9 +396,22 @@ export default function useGame() {
           e.preventDefault();
           dispatch({ type: "RACE_AGAIN" });
         }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          dispatch({ type: "MENU" });
+        }
         return;
       }
       if (state.screen !== "racing") return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        const d = dataRef.current;
+        if (d && !d.finished) {
+          if (d.mode === "race") dispatch({ type: "ABORT" });
+          else finishRun();
+        }
+        return;
+      }
       if (e.key === "Control") {
         if (!showAnswers && !e.repeat) {
           applyPeekPenalty();
@@ -306,7 +448,15 @@ export default function useGame() {
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onBlur);
     };
-  }, [state.screen, showAnswers, applyPeekPenalty, typeChar, syncLive]);
+  }, [
+    state.screen,
+    selectedMode,
+    showAnswers,
+    applyPeekPenalty,
+    typeChar,
+    finishRun,
+    syncLive,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -316,6 +466,7 @@ export default function useGame() {
 
   return {
     screen: state.screen,
+    mode: state.mode,
     round: state.round,
     result: state.result,
     snippet,
@@ -326,19 +477,26 @@ export default function useGame() {
     peekHeld,
     peekPenalty: PEEK_PENALTY_CHARS,
     showAnswers,
+    selectedMode,
+    difficulty,
+    selectMode: (mode) => {
+      setSelectedMode(mode);
+      saveChoice(MODE_KEY, mode);
+    },
+    selectDifficulty: (id) => {
+      setDifficulty(id);
+      saveChoice(DIFFICULTY_KEY, id);
+    },
     toggleAnswers: () => {
       setShowAnswers((prev) => {
         const next = !prev;
-        try {
-          localStorage.setItem(ANSWERS_KEY, String(next));
-        } catch {
-          /* storage unavailable */
-        }
+        saveChoice(ANSWERS_KEY, String(next));
         return next;
       });
     },
-    start: () => dispatch({ type: "START" }),
+    start: () => dispatch({ type: "START", mode: selectedMode }),
     raceAgain: () => dispatch({ type: "RACE_AGAIN" }),
+    toMenu: () => dispatch({ type: "MENU" }),
     peekStart: () => {
       if (state.screen === "racing" && !showAnswers) {
         applyPeekPenalty();

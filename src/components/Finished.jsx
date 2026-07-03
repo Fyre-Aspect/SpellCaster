@@ -1,8 +1,36 @@
 import { motion, useReducedMotion } from "motion/react";
 
-export default function Finished({ result, onRaceAgain }) {
+export default function Finished({ result, onRaceAgain, onMenu }) {
   const reduced = useReducedMotion();
-  const won = result.winner === "player";
+  const isRace = result.mode === "race";
+  const won = isRace && result.winner === "player";
+  const title = isRace
+    ? won
+      ? "You win!"
+      : "The bot wins"
+    : result.mode === "trial"
+      ? "Time's up!"
+      : "Run complete!";
+  const rows = isRace
+    ? [
+        ["Time", `${result.timeSeconds.toFixed(1)}s`],
+        ["WPM", Math.round(result.wpm)],
+        ["Accuracy", `${Math.round(result.accuracy)}%`],
+        ["Round", result.round],
+      ]
+    : result.mode === "trial"
+      ? [
+          ["Chars", result.chars],
+          ["Snippets", result.snippets],
+          ["WPM", Math.round(result.wpm)],
+          ["Accuracy", `${Math.round(result.accuracy)}%`],
+        ]
+      : [
+          ["Snippets", result.snippets],
+          ["Time", `${result.timeSeconds.toFixed(1)}s`],
+          ["WPM", Math.round(result.wpm)],
+          ["Accuracy", `${Math.round(result.accuracy)}%`],
+        ];
   return (
     <motion.div
       className="overlay finished-overlay"
@@ -22,8 +50,8 @@ export default function Finished({ result, onRaceAgain }) {
             : { type: "spring", stiffness: 260, damping: 22 }
         }
       >
-        <h2 className={`result-title ${won ? "win" : "lose"}`}>
-          {won ? "You win!" : "The bot wins"}
+        <h2 className={`result-title ${isRace && !won ? "lose" : "win"}`}>
+          {title}
         </h2>
         {result.newBest && (
           <motion.div
@@ -32,37 +60,32 @@ export default function Finished({ result, onRaceAgain }) {
             animate={reduced ? { opacity: 1 } : { opacity: 1, scale: 1 }}
             transition={{ delay: 0.15 }}
           >
-            New best WPM!
+            {result.mode === "trial" ? "New best score!" : "New best WPM!"}
           </motion.div>
         )}
         <dl className="result-stats">
-          <div>
-            <dt>Time</dt>
-            <dd>{result.timeSeconds.toFixed(1)}s</dd>
-          </div>
-          <div>
-            <dt>WPM</dt>
-            <dd>{Math.round(result.wpm)}</dd>
-          </div>
-          <div>
-            <dt>Accuracy</dt>
-            <dd>{Math.round(result.accuracy)}%</dd>
-          </div>
-          <div>
-            <dt>Round</dt>
-            <dd>{result.round}</dd>
-          </div>
+          {rows.map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
         </dl>
-        <motion.button
-          className="btn btn-big"
-          autoFocus
-          onClick={onRaceAgain}
-          whileHover={reduced ? undefined : { scale: 1.05 }}
-          whileTap={reduced ? undefined : { scale: 0.95 }}
-        >
-          Race Again
-        </motion.button>
-        <p className="enter-hint">press Enter</p>
+        <div className="result-actions">
+          <motion.button
+            className="btn btn-big"
+            autoFocus
+            onClick={onRaceAgain}
+            whileHover={reduced ? undefined : { scale: 1.05 }}
+            whileTap={reduced ? undefined : { scale: 0.95 }}
+          >
+            {isRace ? "Race Again" : "Go Again"}
+          </motion.button>
+          <button type="button" className="btn btn-secondary" onClick={onMenu}>
+            Menu
+          </button>
+        </div>
+        <p className="enter-hint">Enter to go again &middot; Esc for menu</p>
       </motion.div>
     </motion.div>
   );

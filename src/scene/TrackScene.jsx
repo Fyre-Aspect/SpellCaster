@@ -144,8 +144,13 @@ function Track() {
   );
 }
 
-export default function TrackScene({ playerProgress, botProgress, reducedMotion }) {
-  const playerLeading = playerProgress >= botProgress;
+export default function TrackScene({
+  playerProgress,
+  botProgress,
+  showBot,
+  reducedMotion,
+}) {
+  const playerLeading = !showBot || playerProgress >= botProgress;
   return (
     <Canvas
       dpr={[1, 2]}
@@ -167,16 +172,18 @@ export default function TrackScene({ playerProgress, botProgress, reducedMotion 
         leading={playerLeading}
         reducedMotion={reducedMotion}
       />
-      <Racer
-        progress={botProgress}
-        lane={-0.85}
-        robeColor="#ef476f"
-        hatColor="#5a2ca0"
-        headColor="#cfd4dc"
-        label="BOT"
-        leading={!playerLeading}
-        reducedMotion={reducedMotion}
-      />
+      {showBot && (
+        <Racer
+          progress={botProgress}
+          lane={-0.85}
+          robeColor="#ef476f"
+          hatColor="#5a2ca0"
+          headColor="#cfd4dc"
+          label="BOT"
+          leading={!playerLeading}
+          reducedMotion={reducedMotion}
+        />
+      )}
       <ContactShadows
         position={[0, 0.01, 0]}
         opacity={0.3}
