@@ -12,10 +12,14 @@ import {
 const hudEl = document.querySelector("#hud");
 const gameEl = document.querySelector("#game");
 const hintToggleEl = document.querySelector("#hint-toggle");
+const flashEl = document.querySelector("#flash");
+
 
 let hintsEnabled = false;
 let currentInputs = [];
 let currentAnswers = [];
+const SNIPPET_MS = 12000;
+let timerId = null;
 
 function applyHints() {
   hintToggleEl.textContent = hintsEnabled ? "💡 Answers: On" : "💡 Answers: Off";
@@ -48,11 +52,66 @@ function renderHud() {
   );
 }
 
+function stopTimer() {
+  if (timerId !== null){
+    clearInterval(timerId);
+    timerId = null;
+  }
+}
+
+function startTimer(bar, inputs) {
+  const startedAt = Date.now();
+  timerId = setInterval(() => {
+    const remaining = SNIPPET_MS - (Date.now() - startedAt);
+    const fraction = Math.max(0, remaining / SNIPPET_MS);
+    bar.style.width = `${fraction * 100}%`;
+    bar.classList.toggle("warning", fraction < 0.25);
+    if (remaining <= 0) {
+      stopTimer();
+      handleTimeUp(inputs);
+    }
+
+  }, 50);
+
+}
+
+function handleTimeout(inputs) {
+  inputs.forEach((input) => (input.disabled = true));
+  recordWrongSubmit();
+  flash("miss");
+  renderHud();
+  if (state.gameOver) {
+    renderGameOver(gameEl);
+  } else {
+    setTimeout(() => renderSnippet(currentSnippet(), gameEl), 600);
+  }
+}
+
+function flash(kind) {
+  flashE1.classList.remove("flash-miss", "flash-correct");
+  void flashE1.offsetWidth;
+  flashE1.classList.add(kind === "correct" ? "flash-correct" : "flash-miss");
+}
+
+
+function showComboPopup(combo) {
+  const popup = document.createElement("div");
+  popup.className = "combo-popup";
+  popup.textContent = `🔥 ×${combo}`;
+  document.body.appendChild(popup);
+  popup.addEventListener("animationend", () => popup.remove());
+}
+
 function renderSnippet(snippet, container) {
+  stopTimer();
+
   const pre = document.createElement("pre");
   pre.className = "snippet";
   const code = document.createElement("code");
   const inputs = [];
+
+  const bar = document.createElement("div");
+  bar.className = "timerbar";
 
   const parts = snippet.code.split(BLANK_MARKER);
   if (parts.length - 1 !== snippet.answers.length) {
@@ -85,9 +144,12 @@ function renderSnippet(snippet, container) {
   applyHints();
 
   pre.append(code);
-  container.replaceChildren(pre);
+  container.replaceChildren(bar, pre);
   inputs[0]?.focus();
+
+  startTimer(bar, inputs);
 }
+
 
 function renderGameOver(container) {
   const panel = document.createElement("div");
@@ -122,13 +184,16 @@ function submitAnswers(snippet, inputs) {
   );
   inputs.forEach((input, i) => {
     input.classList.remove("correct", "wrong");
-    void input.offsetWidth; // restart the pop/shake animation on repeat submits
+    void input.offsetWidth;
     input.classList.add(results[i] ? "correct" : "wrong");
   });
 
   if (results.every(Boolean)) {
+    stopTimer();
     inputs.forEach((input) => (input.disabled = true));
     recordCorrectSnippet();
+    flash("correct");
+    showComboPopup(state.combo);
     renderHud();
     setTimeout(() => {
       if (state.gameOver) {
@@ -139,8 +204,10 @@ function submitAnswers(snippet, inputs) {
     }, 600);
   } else {
     recordWrongSubmit();
+    flash("miss");
     renderHud();
     if (state.gameOver) {
+      stopTimer();
       renderGameOver(gameEl);
     } else {
       inputs[results.indexOf(false)]?.focus();
@@ -148,11 +215,14 @@ function submitAnswers(snippet, inputs) {
   }
 }
 
+
 function startGame() {
+  stopTimer();
   startRun(snippets);
   renderHud();
   renderSnippet(currentSnippet(), gameEl);
 }
+
 
 hintToggleEl.addEventListener("click", () => {
   hintsEnabled = !hintsEnabled;
