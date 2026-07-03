@@ -11,7 +11,13 @@ export default function App() {
     <div className="app">
       <AnimatePresence mode="wait">
         {game.screen === "menu" ? (
-          <Menu key="menu" best={game.best} onStart={game.start} />
+          <Menu
+            key="menu"
+            best={game.best}
+            showAnswers={game.showAnswers}
+            onToggleAnswers={game.toggleAnswers}
+            onStart={game.start}
+          />
         ) : (
           <RaceScreen key="race" game={game} />
         )}

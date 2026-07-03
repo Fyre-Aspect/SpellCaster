@@ -16,6 +16,7 @@ import { computeAccuracy, computeWpm, createBot } from "../logic/race.js";
 import { gameReducer, initialState } from "../logic/machine.js";
 
 const BEST_KEY = "spellcaster.best.v1";
+const ANSWERS_KEY = "spellcaster.show-answers.v1";
 const PEEK_PENALTY_CHARS = 4;
 const COMBO_STEP = 10;
 const COMBO_VISIBLE_MS = 1000;
@@ -26,6 +27,14 @@ function loadBest() {
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
+  }
+}
+
+function loadShowAnswers() {
+  try {
+    return localStorage.getItem(ANSWERS_KEY) !== "false";
+  } catch {
+    return true;
   }
 }
 
@@ -51,6 +60,7 @@ export default function useGame() {
   const [best, setBest] = useState(loadBest);
   const [count, setCount] = useState(null);
   const [peekHeld, setPeekHeld] = useState(false);
+  const [showAnswers, setShowAnswers] = useState(loadShowAnswers);
   const dataRef = useRef(null);
   const comboTimerRef = useRef(null);
 
@@ -261,7 +271,7 @@ export default function useGame() {
       }
       if (state.screen !== "racing") return;
       if (e.key === "Control") {
-        if (!e.repeat) {
+        if (!showAnswers && !e.repeat) {
           applyPeekPenalty();
           setPeekHeld(true);
         }
@@ -296,7 +306,7 @@ export default function useGame() {
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onBlur);
     };
-  }, [state.screen, applyPeekPenalty, typeChar, syncLive]);
+  }, [state.screen, showAnswers, applyPeekPenalty, typeChar, syncLive]);
 
   useEffect(() => {
     return () => {
@@ -315,10 +325,22 @@ export default function useGame() {
     count,
     peekHeld,
     peekPenalty: PEEK_PENALTY_CHARS,
+    showAnswers,
+    toggleAnswers: () => {
+      setShowAnswers((prev) => {
+        const next = !prev;
+        try {
+          localStorage.setItem(ANSWERS_KEY, String(next));
+        } catch {
+          /* storage unavailable */
+        }
+        return next;
+      });
+    },
     start: () => dispatch({ type: "START" }),
     raceAgain: () => dispatch({ type: "RACE_AGAIN" }),
     peekStart: () => {
-      if (state.screen === "racing") {
+      if (state.screen === "racing" && !showAnswers) {
         applyPeekPenalty();
         setPeekHeld(true);
       }

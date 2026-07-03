@@ -6,7 +6,16 @@ const START_X = -4.5;
 const TRACK_LENGTH = 9;
 const FINISH_X = START_X + TRACK_LENGTH;
 
-function Racer({ progress, lane, robeColor, hatColor, label, leading, reducedMotion }) {
+function Racer({
+  progress,
+  lane,
+  robeColor,
+  hatColor,
+  headColor,
+  label,
+  leading,
+  reducedMotion,
+}) {
   const group = useRef();
   const orbMat = useRef();
 
@@ -35,19 +44,19 @@ function Racer({ progress, lane, robeColor, hatColor, label, leading, reducedMot
     <group ref={group} position={[START_X, 0, lane]}>
       <mesh position={[0, 0.42, 0]}>
         <coneGeometry args={[0.34, 0.85, 7]} />
-        <meshStandardMaterial color={robeColor} flatShading />
+        <meshToonMaterial color={robeColor} />
       </mesh>
       <mesh position={[0, 0.98, 0]}>
         <sphereGeometry args={[0.17, 16, 12]} />
-        <meshStandardMaterial color="#f2d5b1" />
+        <meshToonMaterial color={headColor} />
       </mesh>
       <mesh position={[0.02, 1.26, 0]} rotation={[0, 0, -0.12]}>
         <coneGeometry args={[0.21, 0.44, 7]} />
-        <meshStandardMaterial color={hatColor} flatShading />
+        <meshToonMaterial color={hatColor} />
       </mesh>
       <mesh position={[0.4, 0.85, 0.12]}>
         <sphereGeometry args={[0.09, 12, 10]} />
-        <meshStandardMaterial
+        <meshToonMaterial
           ref={orbMat}
           color={hatColor}
           emissive={hatColor}
@@ -73,8 +82,8 @@ function Track() {
           position={[FINISH_X + (col - 0.5) * 0.3, 0.004, -1.4 + row * 0.4]}
         >
           <boxGeometry args={[0.3, 0.006, 0.4]} />
-          <meshStandardMaterial
-            color={(row + col) % 2 === 0 ? "#e8ecf8" : "#141a30"}
+          <meshToonMaterial
+            color={(row + col) % 2 === 0 ? "#fffdf5" : "#1c1c28"}
           />
         </mesh>
       );
@@ -87,10 +96,10 @@ function Track() {
       dots.push(
         <mesh key={`dot-${x}-${z}`} position={[x, 0.05, z]}>
           <sphereGeometry args={[0.045, 8, 8]} />
-          <meshStandardMaterial
-            color="#8b5cf6"
-            emissive="#8b5cf6"
-            emissiveIntensity={1.4}
+          <meshToonMaterial
+            color="#ffd23f"
+            emissive="#ffd23f"
+            emissiveIntensity={1.2}
           />
         </mesh>
       );
@@ -101,34 +110,34 @@ function Track() {
     <group>
       <mesh rotation-x={-Math.PI / 2} position={[0, -0.21, 0]}>
         <planeGeometry args={[60, 30]} />
-        <meshStandardMaterial color="#0d1122" />
+        <meshToonMaterial color="#6abf4b" />
       </mesh>
       <mesh position={[0, -0.1, 0]}>
         <boxGeometry args={[11, 0.2, 3.6]} />
-        <meshStandardMaterial color="#1b2138" />
+        <meshToonMaterial color="#d9a066" />
       </mesh>
       <mesh position={[0, 0.003, 0]}>
         <boxGeometry args={[10.6, 0.005, 0.04]} />
-        <meshStandardMaterial color="#2b3355" />
+        <meshToonMaterial color="#fff3d6" />
       </mesh>
       <mesh position={[START_X, 0.004, 0]}>
         <boxGeometry args={[0.08, 0.006, 3.2]} />
-        <meshStandardMaterial color="#e8ecf8" transparent opacity={0.65} />
+        <meshToonMaterial color="#fffdf5" transparent opacity={0.85} />
       </mesh>
       {checkers}
       {dots}
       {[-1.9, 1.9].map((z) => (
         <mesh key={`post-${z}`} position={[FINISH_X, 0.8, z]}>
           <cylinderGeometry args={[0.06, 0.06, 1.6, 10]} />
-          <meshStandardMaterial color="#222b4a" />
+          <meshToonMaterial color="#ef476f" />
         </mesh>
       ))}
       <mesh position={[FINISH_X, 1.62, 0]}>
         <boxGeometry args={[0.08, 0.08, 3.9]} />
-        <meshStandardMaterial
-          color="#8b5cf6"
-          emissive="#8b5cf6"
-          emissiveIntensity={1.1}
+        <meshToonMaterial
+          color="#ffd23f"
+          emissive="#ffd23f"
+          emissiveIntensity={0.6}
         />
       </mesh>
     </group>
@@ -143,17 +152,17 @@ export default function TrackScene({ playerProgress, botProgress, reducedMotion 
       camera={{ position: [0, 2.7, 8.8], fov: 36 }}
       onCreated={({ camera }) => camera.lookAt(0, 0.4, 0)}
     >
-      <color attach="background" args={["#0b0e1a"]} />
-      <fog attach="fog" args={["#0b0e1a", 14, 26]} />
-      <ambientLight intensity={0.55} />
-      <directionalLight position={[5, 8, 4]} intensity={1.1} />
-      <pointLight position={[-6, 3, 3]} intensity={25} distance={25} color="#7c5cff" />
+      <color attach="background" args={["#7ec8f7"]} />
+      <fog attach="fog" args={["#7ec8f7", 14, 27]} />
+      <ambientLight intensity={0.9} />
+      <directionalLight position={[5, 8, 4]} intensity={1.2} />
       <Track />
       <Racer
         progress={playerProgress}
         lane={0.85}
-        robeColor="#1e6f8f"
-        hatColor="#4de3ff"
+        robeColor="#2f6fe4"
+        hatColor="#ffd23f"
+        headColor="#f2d5b1"
         label="YOU"
         leading={playerLeading}
         reducedMotion={reducedMotion}
@@ -161,15 +170,16 @@ export default function TrackScene({ playerProgress, botProgress, reducedMotion 
       <Racer
         progress={botProgress}
         lane={-0.85}
-        robeColor="#8f4a1e"
-        hatColor="#ff8a4d"
+        robeColor="#ef476f"
+        hatColor="#5a2ca0"
+        headColor="#cfd4dc"
         label="BOT"
         leading={!playerLeading}
         reducedMotion={reducedMotion}
       />
       <ContactShadows
         position={[0, 0.01, 0]}
-        opacity={0.45}
+        opacity={0.3}
         scale={14}
         blur={2.5}
         far={2.5}

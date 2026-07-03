@@ -1,8 +1,8 @@
 export const BOT = {
-  baseWpm: 72,
-  minWpm: 60,
-  maxWpm: 84,
-  stumbleWpm: 40,
+  baseWpm: 35,
+  minWpm: 28,
+  maxWpm: 42,
+  stumbleWpm: 18,
   stumbleChance: 1 / 8,
   rerollSeconds: 1.5,
 };
