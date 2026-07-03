@@ -6,11 +6,8 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  parseTemplate,
-  snippetForRound,
-  totalAnswerChars,
-} from "../data/snippets.js";
+import { totalAnswerChars } from "../data/snippets.js";
+import { challengeForRound, CONTENT_TYPES } from "../data/challenges.js";
 import { checkAnswer, correctCharCount } from "../logic/typing.js";
 import {
   BOT_DIFFICULTIES,
@@ -23,14 +20,15 @@ import { gameReducer, initialState, MODES } from "../logic/machine.js";
 const ANSWERS_KEY = "spellcaster.show-answers.v1";
 const MODE_KEY = "spellcaster.mode.v1";
 const DIFFICULTY_KEY = "spellcaster.difficulty.v1";
+const CONTENT_KEY = "spellcaster.content.v1";
 const PEEK_PENALTY_CHARS = 4;
 const COMBO_STEP = 10;
 const COMBO_VISIBLE_MS = 1000;
 
-function bestKeyFor(mode, difficulty) {
+function bestKeyFor(mode, difficulty, content) {
   return mode === "race"
-    ? `spellcaster.best.race.${difficulty}.v1`
-    : `spellcaster.best.${mode}.v1`;
+    ? `spellcaster.best.race.${difficulty}.${content}.v1`
+    : `spellcaster.best.${mode}.${content}.v1`;
 }
 
 function loadJson(key) {
@@ -105,14 +103,19 @@ export default function useGame() {
   const [difficulty, setDifficulty] = useState(() =>
     loadChoice(DIFFICULTY_KEY, "medium", Object.keys(BOT_DIFFICULTIES))
   );
+  const [content, setContent] = useState(() =>
+    loadChoice(CONTENT_KEY, "blanks", Object.keys(CONTENT_TYPES))
+  );
   const [bestBump, setBestBump] = useState(0);
   const dataRef = useRef(null);
   const comboTimerRef = useRef(null);
 
-  const snippet = useMemo(() => snippetForRound(state.round), [state.round]);
-  const segments = useMemo(() => parseTemplate(snippet.template), [snippet]);
+  const challenge = useMemo(
+    () => challengeForRound(state.round, content),
+    [state.round, content]
+  );
 
-  const bestKey = bestKeyFor(selectedMode, difficulty);
+  const bestKey = bestKeyFor(selectedMode, difficulty, content);
   const best = useMemo(() => loadJson(bestKey), [bestKey, bestBump]);
 
   const syncLive = useCallback(() => {
@@ -165,11 +168,11 @@ export default function useGame() {
         wpm: computeWpm(typedCorrect, d.elapsed),
         accuracy: computeAccuracy(d.correctKeystrokes, d.keystrokes),
         round: d.round,
-        snippetId: d.snippet.id,
+        snippetId: d.challenge.id,
         newBest: false,
       };
       if (winner === "player") {
-        const key = bestKeyFor("race", d.difficulty);
+        const key = bestKeyFor("race", d.difficulty, d.content);
         const prev = loadJson(key);
         if (!prev || stats.wpm > prev.wpm) {
           saveJson(key, { wpm: stats.wpm, timeSeconds: stats.timeSeconds });
@@ -202,10 +205,10 @@ export default function useGame() {
       snippets: d.snippetsCompleted,
       chars: score,
       round: d.round,
-      snippetId: d.snippet.id,
+      snippetId: d.challenge.id,
       newBest: false,
     };
-    const key = bestKeyFor(d.mode);
+    const key = bestKeyFor(d.mode, d.difficulty, d.content);
     const prev = loadJson(key);
     if (d.mode === "endless") {
       if (d.snippetsCompleted >= 1 && (!prev || stats.wpm > prev.wpm)) {
@@ -223,16 +226,17 @@ export default function useGame() {
   }, [syncLive]);
 
   const initRace = useCallback(
-    (round, mode, difficultyId) => {
-      const s = snippetForRound(round);
+    (round, mode, difficultyId, contentId) => {
+      const c = challengeForRound(round, contentId);
       if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
       dataRef.current = {
         mode,
         difficulty: difficultyId,
+        content: contentId,
         round,
-        snippet: s,
-        answers: s.answers,
-        total: totalAnswerChars(s.answers),
+        challenge: c,
+        answers: c.answers,
+        total: totalAnswerChars(c.answers),
         blankIndex: 0,
         typed: "",
         completedChars: 0,
@@ -263,10 +267,10 @@ export default function useGame() {
     d.runChars += d.total;
     d.snippetsCompleted += 1;
     d.round += 1;
-    const s = snippetForRound(d.round);
-    d.snippet = s;
-    d.answers = s.answers;
-    d.total = totalAnswerChars(s.answers);
+    const c = challengeForRound(d.round, d.content);
+    d.challenge = c;
+    d.answers = c.answers;
+    d.total = totalAnswerChars(c.answers);
     d.blankIndex = 0;
     d.typed = "";
     d.completedChars = 0;
@@ -335,7 +339,7 @@ export default function useGame() {
 
   useEffect(() => {
     if (state.screen !== "countdown") return;
-    initRace(state.round, state.mode, difficulty);
+    initRace(state.round, state.mode, difficulty, content);
     setCount(3);
     const timers = [
       setTimeout(() => setCount(2), 750),
@@ -347,7 +351,7 @@ export default function useGame() {
       timers.forEach(clearTimeout);
       setCount(null);
     };
-  }, [state.screen, state.round, state.mode, difficulty, initRace]);
+  }, [state.screen, state.round, state.mode, difficulty, content, initRace]);
 
   useEffect(() => {
     if (state.screen !== "racing") return;
@@ -413,7 +417,7 @@ export default function useGame() {
         return;
       }
       if (e.key === "Control") {
-        if (!showAnswers && !e.repeat) {
+        if (!showAnswers && content === "blanks" && !e.repeat) {
           applyPeekPenalty();
           setPeekHeld(true);
         }
@@ -452,6 +456,7 @@ export default function useGame() {
     state.screen,
     selectedMode,
     showAnswers,
+    content,
     applyPeekPenalty,
     typeChar,
     finishRun,
@@ -469,8 +474,7 @@ export default function useGame() {
     mode: state.mode,
     round: state.round,
     result: state.result,
-    snippet,
-    segments,
+    challenge,
     live,
     best,
     count,
@@ -479,6 +483,7 @@ export default function useGame() {
     showAnswers,
     selectedMode,
     difficulty,
+    content,
     selectMode: (mode) => {
       setSelectedMode(mode);
       saveChoice(MODE_KEY, mode);
@@ -486,6 +491,10 @@ export default function useGame() {
     selectDifficulty: (id) => {
       setDifficulty(id);
       saveChoice(DIFFICULTY_KEY, id);
+    },
+    selectContent: (id) => {
+      setContent(id);
+      saveChoice(CONTENT_KEY, id);
     },
     toggleAnswers: () => {
       setShowAnswers((prev) => {
@@ -498,7 +507,7 @@ export default function useGame() {
     raceAgain: () => dispatch({ type: "RACE_AGAIN" }),
     toMenu: () => dispatch({ type: "MENU" }),
     peekStart: () => {
-      if (state.screen === "racing" && !showAnswers) {
+      if (state.screen === "racing" && !showAnswers && content === "blanks") {
         applyPeekPenalty();
         setPeekHeld(true);
       }
