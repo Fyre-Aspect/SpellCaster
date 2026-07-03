@@ -11,6 +11,7 @@ export const state = {
   queueIndex: 0,
   gameOver: false,
   runComplete: false,
+  screen: "title",
 };
 
 // Starts a run: resets everything and builds the queue easiest-first
@@ -31,6 +32,7 @@ export function startRun(snippetBank) {
   state.queueIndex = 0;
   state.gameOver = false;
   state.runComplete = false;
+  state.screen = "playing";
 }
 
 export function currentSnippet() {
@@ -48,6 +50,7 @@ export function recordCorrectSnippet() {
   if (state.queueIndex >= state.queue.length) {
     state.runComplete = true;
     state.gameOver = true;
+    state.screen = "gameOver";
   }
 }
 
@@ -59,5 +62,6 @@ export function recordWrongSubmit() {
   if (state.lives <= 0) {
     state.lives = 0;
     state.gameOver = true;
+    state.screen = "gameOver";
   }
 }

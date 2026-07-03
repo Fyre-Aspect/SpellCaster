@@ -279,3 +279,33 @@ body {
   100% { opacity: 0; transform: translate(-50%, -80px) scale(1); }
 }
 
+.screen {
+  display:none;
+  flex-direction:column;
+  align-items:center;
+  width: min(760px, 92vw);
+}
+
+.screen.active{
+  display:flex;
+}
+
+
+#title-screen {
+  gap: 0.5rem;
+  padding: 2rem 0;
+}
+
+.btn-big {
+  font-size: 1.25rem;
+  padding: 0.9rem 2rem;
+  margin-top: 1rem;
+}
+
+.highscore {
+  margin: 0.5rem 0;
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--yellow);
+}
+

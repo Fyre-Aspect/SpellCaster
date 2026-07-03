@@ -13,6 +13,11 @@ const hudEl = document.querySelector("#hud");
 const gameEl = document.querySelector("#game");
 const hintToggleEl = document.querySelector("#hint-toggle");
 const flashEl = document.querySelector("#flash");
+const titleScreenE1 = document.querySelector("#title-screen");
+const playScreenE1 = document.querySelector("#play-screen");
+const gameOverScreenE1 = document.querySelector("#game-over-screen");
+const startBtn = document.querySelector("#start-btn");
+const titleHighScoreEl = document.querySelector("#title-high-score");
 
 
 let hintsEnabled = false;
@@ -20,6 +25,8 @@ let currentInputs = [];
 let currentAnswers = [];
 const SNIPPET_MS = 12000;
 let timerId = null;
+const HIGH_SCORE_KEY = "spellcaster.highScore";
+let highScore = loadHighScore();
 
 function applyHints() {
   hintToggleEl.textContent = hintsEnabled ? "💡 Answers: On" : "💡 Answers: Off";
@@ -50,6 +57,22 @@ function renderHud() {
     hudItem("Combo", `🔥 ×${state.combo}`),
     hudItem("Lives", hearts)
   );
+}
+
+function loadHighScore() {
+  const raw = localStorage.getItem(HIGH_SCORE_KEY);
+  const value = Number.parseInt(raw,10);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function saveHighScore(score) {
+  localStorage.setItem(HIGH_SCORE_KEY, String(score));
+}
+
+function showScreen() {
+  titleScreenE1.classList.toggle("active", state.screen === "title");
+  playScreenE1.classList.toggle("active", state.screen === "playing");
+  gameOverScreenE1.classList.toggle("active", state.screen === "gameOver");
 }
 
 function stopTimer() {

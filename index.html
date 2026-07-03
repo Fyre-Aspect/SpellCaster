@@ -9,12 +9,24 @@
   <body>
     <h1 class="title">🪄 Spellcaster</h1>
     <p class="tagline">Type the missing code. Build your combo. Keep your hearts!</p>
-    <div id="menu">
-      <button id="hint-toggle" class="btn" type="button" aria-pressed="false">💡 Answers: Off</button>
+
+    <div id="title-screen" class="screen active">
+      <p id="title-highscore" class="highscore"></p>
+      <button id="start-btn" class="btn btn-big" type="button">▶ Start Game</button>
     </div>
-    <div id="hud"></div>
-    <div id="game"></div>
+
+    <div id="play-screen" class="screen">
+      <div id="menu">
+        <button id="hint-toggle" class="btn" type="button" aria-pressed="false">💡 Answers: Off</button>
+      </div>
+      <div id="hud"></div>
+      <div id="game"></div>
+    </div>
+
+    <div id="gameover-screen" class="screen"></div>
+
     <div id="flash" aria-hidden="true"></div>
     <script type="module" src="/src/main.js"></script>
   </body>
+
 </html>
