@@ -504,7 +504,14 @@ export default function useGame() {
       });
     },
     start: () => dispatch({ type: "START", mode: selectedMode }),
-    raceAgain: () => dispatch({ type: "RACE_AGAIN" }),
+    raceAgain: () => {
+      let round = 1;
+      if (state.mode === "race") {
+        const won = state.result?.winner === "player";
+        round = won ? state.round + 1 : state.round;
+      }
+      dispatch({ type: "RACE_AGAIN", round });
+    },
     toMenu: () => dispatch({ type: "MENU" }),
     peekStart: () => {
       if (state.screen === "racing" && !showAnswers && content === "blanks") {

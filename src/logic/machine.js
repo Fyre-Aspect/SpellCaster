@@ -55,7 +55,12 @@ export function gameReducer(state, event) {
       return state;
     case "finished":
       if (event.type === "RACE_AGAIN") {
-        return { ...state, screen: "countdown", round: state.round + 1, result: null };
+        return {
+          ...state,
+          screen: "countdown",
+          round: event.round ?? state.round + 1,
+          result: null,
+        };
       }
       if (event.type === "MENU") {
         return { ...state, screen: "menu", round: 1, result: null };
