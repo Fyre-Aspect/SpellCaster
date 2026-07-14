@@ -70,8 +70,11 @@ function ActiveBlank({ answer, typed, revealed, errorPing, reduced }) {
 }
 
 export default function CodePanel({ game }) {
-  const { challenge, live, peekHeld, peekPenalty, showAnswers } = game;
+  const { challenge, live, peekHeld, peekPenalty, showAnswers, content } = game;
   const reduced = useReducedMotion();
+  // Full-code and sentence answers are the entire line — always show them
+  const revealed = showAnswers || content !== "blanks";
+  const canPeek = content === "blanks" && !showAnswers;
   return (
     <section className="code-panel">
       <AnimatePresence>
@@ -116,7 +119,7 @@ export default function CodePanel({ game }) {
               <UpcomingBlank
                 key={`b${i}`}
                 answer={answer}
-                revealed={showAnswers}
+                revealed={revealed}
               />
             );
           }
@@ -125,14 +128,14 @@ export default function CodePanel({ game }) {
               key={`b${i}`}
               answer={answer}
               typed={live.typed}
-              revealed={showAnswers || peekHeld}
+              revealed={revealed || peekHeld}
               errorPing={live.errorPing}
               reduced={reduced}
             />
           );
         })}
       </motion.pre>
-      {!showAnswers && (
+      {canPeek && (
         <div className="peek-row">
           <button
             type="button"

@@ -32,7 +32,10 @@ export default function RaceScreen({ game }) {
       <CodePanel game={game} />
       <footer className="race-footer">
         <span>{modeLabel}</span>
-        <span>Snippet: {game.challenge.id}</span>
+        <span>
+          {game.content === "sentences" ? "Sentence" : "Snippet"}:{" "}
+          {game.challenge.id}
+        </span>
         <span>Difficulty {game.challenge.difficulty} / 3</span>
       </footer>
     </motion.div>

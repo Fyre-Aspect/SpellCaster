@@ -1,6 +1,13 @@
 import { motion, useReducedMotion } from "motion/react";
 import { MODES } from "../logic/machine.js";
 import { BOT_DIFFICULTIES, DIFFICULTY_ORDER } from "../logic/race.js";
+import { CONTENT_TYPES } from "../data/challenges.js";
+
+const CONTENT_HINTS = {
+  blanks: null,
+  full: "Type the whole snippet line by line — it's shown faintly",
+  sentences: "Type the whole sentence — punctuation counts!",
+};
 
 function bestText(mode, best) {
   if (!best) return "No record yet — set one!";
@@ -19,6 +26,8 @@ export default function Menu({
   onSelectMode,
   difficulty,
   onSelectDifficulty,
+  content,
+  onSelectContent,
   showAnswers,
   onToggleAnswers,
   onStart,
@@ -64,6 +73,18 @@ export default function Menu({
           })}
         </div>
       )}
+      <div className="content-row">
+        {Object.values(CONTENT_TYPES).map((type) => (
+          <button
+            key={type.id}
+            type="button"
+            className={`content-btn ${content === type.id ? "selected" : ""}`}
+            onClick={() => onSelectContent(type.id)}
+          >
+            {type.label}
+          </button>
+        ))}
+      </div>
       <div className="best-chip">{bestText(selectedMode, best)}</div>
       <motion.button
         className="btn btn-big"
@@ -74,11 +95,15 @@ export default function Menu({
       >
         {MODES[selectedMode].startLabel}
       </motion.button>
-      <button type="button" className="toggle-btn" onClick={onToggleAnswers}>
-        Answers shown: {showAnswers ? "ON" : "OFF"}
-      </button>
+      {content === "blanks" && (
+        <button type="button" className="toggle-btn" onClick={onToggleAnswers}>
+          Answers shown: {showAnswers ? "ON" : "OFF"}
+        </button>
+      )}
       <ul className="hints">
-        {showAnswers ? (
+        {content !== "blanks" ? (
+          <li>{CONTENT_HINTS[content]}</li>
+        ) : showAnswers ? (
           <li>The missing code is shown faintly in the blanks — type over it!</li>
         ) : (
           <li>Answers are hidden — hold Ctrl to peek (costs 4 chars of progress)</li>

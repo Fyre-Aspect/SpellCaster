@@ -18,6 +18,8 @@ export default function App() {
             onSelectMode={game.selectMode}
             difficulty={game.difficulty}
             onSelectDifficulty={game.selectDifficulty}
+            content={game.content}
+            onSelectContent={game.selectContent}
             showAnswers={game.showAnswers}
             onToggleAnswers={game.toggleAnswers}
             onStart={game.start}

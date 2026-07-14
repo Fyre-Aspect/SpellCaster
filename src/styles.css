@@ -178,6 +178,34 @@ button {
   color: #fffdf5;
 }
 
+.content-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.content-btn {
+  font-family: var(--font-comic);
+  font-weight: 700;
+  font-size: 13px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  padding: 6px 16px;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.content-btn:hover {
+  background: var(--yellow);
+}
+
+.content-btn.selected {
+  background: var(--green);
+}
+
 .result-actions {
   display: flex;
   align-items: center;
@@ -394,7 +422,8 @@ button {
   font-family: var(--font-mono);
   font-size: clamp(15px, 2.2vw, 21px);
   line-height: 1.85;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: var(--ink);
   background: var(--panel);
   border: 3px solid var(--ink);
