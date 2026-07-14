@@ -1,4 +1,4 @@
-export default function Hud({ live, mode }) {
+export default function Hud({ live, mode, muted, onToggleMute }) {
   const playerPct = Math.round(live.playerProgress * 100);
   const botPct = Math.round(live.botProgress * 100);
   const isTrial = mode === "trial";
@@ -45,6 +45,17 @@ export default function Hud({ live, mode }) {
           </div>
         )}
       </div>
+      <button
+        type="button"
+        className="mute-btn"
+        aria-label={muted ? "Unmute sound" : "Mute sound"}
+        onClick={(e) => {
+          onToggleMute();
+          e.currentTarget.blur();
+        }}
+      >
+        {muted ? "\u{1F507}" : "\u{1F50A}"}
+      </button>
     </div>
   );
 }

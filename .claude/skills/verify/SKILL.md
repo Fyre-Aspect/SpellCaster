@@ -38,3 +38,8 @@ args: [
 
 - `npm run build` takes ~45s (three.js chunk); fine as a syntax gate but not a verification.
 - Error boundary can be tested by temporarily throwing in App.jsx behind a `?boom` query param — revert before committing.
+- **A long-lived dev server degrades badly** after several puppeteer sessions + HMR edits: CDP evaluates stall for 10+ seconds and typed keys stop registering, which looks exactly like an app bug. It isn't. Restart `npm run dev` per verification session, or better, verify against `npm run build && npm run preview` (port 4173) — the prod build never exhibits this.
+- Add `--mute-audio` to Chrome args now that the app has WebAudio SFX.
+- Audio verification: count oscillator starts by wrapping `OscillatorNode.prototype.start` via `evaluateOnNewDocument`; you can't hear headless audio. Expect 4 osc starts through a countdown, +1 per keystroke.
+- When writing `hint.replace(/ /g, " ")` in driver code, ALWAYS use the ` ` escape — a literal nbsp pasted into the pattern is indistinguishable from a space and has caused hours of confusion. The hint spans in the DOM contain nbsp for spaces; puppeteer silently drops nbsp (insertText path, no keydown).
+- Driver probes that type N chars must account for blanks shorter than N — the blank completes and `.blank.active` moves on, so "chars registered" reads 0 from the next blank.

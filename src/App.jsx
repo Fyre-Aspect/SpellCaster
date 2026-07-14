@@ -25,6 +25,8 @@ export default function App() {
             onToggleAnswers={game.toggleAnswers}
             onStart={game.start}
             summary={game.summary}
+            muted={game.muted}
+            onToggleMute={game.toggleMute}
           />
         ) : (
           <RaceScreen key="race" game={game} />

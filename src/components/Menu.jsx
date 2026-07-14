@@ -33,6 +33,8 @@ export default function Menu({
   onToggleAnswers,
   onStart,
   summary,
+  muted,
+  onToggleMute,
 }) {
   const reduced = useReducedMotion();
   return (
@@ -109,11 +111,16 @@ export default function Menu({
       >
         {MODES[selectedMode].startLabel}
       </motion.button>
-      {content === "blanks" && (
-        <button type="button" className="toggle-btn" onClick={onToggleAnswers}>
-          Answers shown: {showAnswers ? "ON" : "OFF"}
+      <div className="toggle-row">
+        {content === "blanks" && (
+          <button type="button" className="toggle-btn" onClick={onToggleAnswers}>
+            Answers shown: {showAnswers ? "ON" : "OFF"}
+          </button>
+        )}
+        <button type="button" className="toggle-btn" onClick={onToggleMute}>
+          Sound: {muted ? "OFF" : "ON"}
         </button>
-      )}
+      </div>
       <ul className="hints">
         {content !== "blanks" ? (
           <li>{CONTENT_HINTS[content]}</li>

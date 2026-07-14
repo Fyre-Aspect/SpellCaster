@@ -28,7 +28,12 @@ export default function RaceScreen({ game }) {
           reducedMotion={!!reduced}
         />
       </div>
-      <Hud live={game.live} mode={game.mode} />
+      <Hud
+        live={game.live}
+        mode={game.mode}
+        muted={game.muted}
+        onToggleMute={game.toggleMute}
+      />
       <CodePanel game={game} />
       <footer className="race-footer">
         <span>{modeLabel}</span>

@@ -17,6 +17,20 @@ import {
 } from "../logic/race.js";
 import { gameReducer, initialState, MODES } from "../logic/machine.js";
 import { loadHistory, recordRun, summarizeHistory } from "../logic/stats.js";
+import {
+  initAudio,
+  keyTick,
+  errorBuzz,
+  comboPop,
+  countBeep,
+  goBeep,
+  winFanfare,
+  loseSlide,
+  finishChime,
+  uiClick,
+  isMuted,
+  toggleMuted,
+} from "../audio/sfx.js";
 
 const ANSWERS_KEY = "spellcaster.show-answers.v1";
 const MODE_KEY = "spellcaster.mode.v1";
@@ -129,6 +143,7 @@ export default function useGame() {
   );
   const [bestBump, setBestBump] = useState(0);
   const [historyBump, setHistoryBump] = useState(0);
+  const [muted, setMuted] = useState(isMuted);
   const dataRef = useRef(null);
   const comboTimerRef = useRef(null);
 
@@ -208,6 +223,9 @@ export default function useGame() {
           setBestBump((b) => b + 1);
           stats.newBest = true;
         }
+        winFanfare();
+      } else {
+        loseSlide();
       }
       syncLive();
       dispatch({ type: "FINISH", stats });
@@ -254,6 +272,7 @@ export default function useGame() {
       setBestBump((b) => b + 1);
       stats.newBest = true;
     }
+    finishChime();
     syncLive();
     dispatch({ type: "FINISH", stats });
   }, [syncLive]);
@@ -334,6 +353,7 @@ export default function useGame() {
         d.streak = 0;
         d.errorPing += 1;
         d.currentBlankWrong += 1;
+        errorBuzz();
         syncLive();
         return;
       }
@@ -342,7 +362,9 @@ export default function useGame() {
       if (correct) {
         d.correctKeystrokes += 1;
         d.streak += 1;
+        keyTick(d.streak);
         if (d.streak % COMBO_STEP === 0) {
+          comboPop();
           d.comboSeq += 1;
           d.combo = { id: d.comboSeq, value: d.streak };
           if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
@@ -357,6 +379,7 @@ export default function useGame() {
         d.streak = 0;
         d.errorPing += 1;
         d.currentBlankWrong += 1;
+        errorBuzz();
       }
       if (checkAnswer(d.typed, expected)) {
         d.blankLog.push({
@@ -385,10 +408,16 @@ export default function useGame() {
     if (state.screen !== "countdown") return;
     initRace(state.round, state.mode, difficulty, content);
     setCount(3);
+    countBeep();
+    const tick = (value) => () => {
+      setCount(value);
+      if (value === "GO") goBeep();
+      else countBeep();
+    };
     const timers = [
-      setTimeout(() => setCount(2), 750),
-      setTimeout(() => setCount(1), 1500),
-      setTimeout(() => setCount("GO"), 2250),
+      setTimeout(tick(2), 750),
+      setTimeout(tick(1), 1500),
+      setTimeout(tick("GO"), 2250),
       setTimeout(() => dispatch({ type: "GO" }), 2900),
     ];
     return () => {
@@ -520,6 +549,8 @@ export default function useGame() {
     syncLive,
   ]);
 
+  useEffect(() => initAudio(), []);
+
   useEffect(() => {
     return () => {
       if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
@@ -554,6 +585,12 @@ export default function useGame() {
     selectContent: (id) => {
       setContent(id);
       saveChoice(CONTENT_KEY, id);
+    },
+    muted,
+    toggleMute: () => {
+      const next = toggleMuted();
+      setMuted(next);
+      if (!next) uiClick();
     },
     toggleAnswers: () => {
       setShowAnswers((prev) => {

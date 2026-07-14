@@ -343,6 +343,29 @@ button {
   box-shadow: 3px 3px 0 var(--ink);
 }
 
+.toggle-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.mute-btn {
+  align-self: center;
+  font-size: 17px;
+  line-height: 1;
+  background: var(--panel);
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.mute-btn:hover {
+  background: var(--yellow);
+}
+
 .stats-card {
   display: flex;
   align-items: center;
