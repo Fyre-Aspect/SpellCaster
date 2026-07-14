@@ -4,6 +4,7 @@ import Menu from "./components/Menu.jsx";
 import RaceScreen from "./components/RaceScreen.jsx";
 import Countdown from "./components/Countdown.jsx";
 import Finished from "./components/Finished.jsx";
+import PauseOverlay from "./components/PauseOverlay.jsx";
 
 export default function App() {
   const game = useGame();
@@ -31,6 +32,18 @@ export default function App() {
       <AnimatePresence>
         {game.screen === "countdown" && (
           <Countdown key="countdown" value={game.count} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {game.screen === "paused" && (
+          <PauseOverlay
+            key="paused"
+            mode={game.mode}
+            onResume={game.resume}
+            onRestart={game.restartRun}
+            onEndRun={game.endRun}
+            onMenu={game.toMenu}
+          />
         )}
       </AnimatePresence>
       <AnimatePresence>

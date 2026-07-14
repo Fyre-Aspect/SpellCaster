@@ -588,6 +588,26 @@ button {
   backdrop-filter: blur(3px);
 }
 
+.pause-overlay {
+  background: rgba(253, 246, 227, 0.85);
+  backdrop-filter: blur(3px);
+}
+
+.pause-title {
+  color: var(--blue);
+}
+
+.pause-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 230px;
+}
+
+.pause-actions .btn {
+  width: 100%;
+}
+
 .crash-overlay {
   background: var(--paper);
 }

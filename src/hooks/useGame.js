@@ -234,6 +234,7 @@ export default function useGame() {
         difficulty: difficultyId,
         content: contentId,
         round,
+        startRound: round,
         challenge: c,
         answers: c.answers,
         total: totalAnswerChars(c.answers),
@@ -381,8 +382,11 @@ export default function useGame() {
 
   useEffect(() => {
     function onKeyDown(e) {
+      // A focused button handles Enter natively — don't also dispatch
+      const onButton =
+        e.target instanceof HTMLElement && e.target.closest("button") !== null;
       if (state.screen === "menu") {
-        if (e.key === "Enter") {
+        if (e.key === "Enter" && !onButton) {
           e.preventDefault();
           dispatch({ type: "START", mode: selectedMode });
         }
@@ -396,7 +400,7 @@ export default function useGame() {
         return;
       }
       if (state.screen === "finished") {
-        if (e.key === "Enter") {
+        if (e.key === "Enter" && !onButton) {
           e.preventDefault();
           dispatch({ type: "RACE_AGAIN" });
         }
@@ -406,14 +410,24 @@ export default function useGame() {
         }
         return;
       }
+      if (state.screen === "paused") {
+        if (e.key === "Escape" || (e.key === "Enter" && !onButton)) {
+          e.preventDefault();
+          dispatch({ type: "RESUME" });
+        } else if (e.key === "r" || e.key === "R") {
+          e.preventDefault();
+          dispatch({ type: "RESTART", round: dataRef.current?.startRound });
+        } else if (e.key === "m" || e.key === "M") {
+          e.preventDefault();
+          dispatch({ type: "MENU" });
+        }
+        return;
+      }
       if (state.screen !== "racing") return;
       if (e.key === "Escape") {
         e.preventDefault();
         const d = dataRef.current;
-        if (d && !d.finished) {
-          if (d.mode === "race") dispatch({ type: "ABORT" });
-          else finishRun();
-        }
+        if (d && !d.finished) dispatch({ type: "PAUSE" });
         return;
       }
       if (e.key === "Control") {
@@ -505,13 +519,21 @@ export default function useGame() {
     },
     start: () => dispatch({ type: "START", mode: selectedMode }),
     raceAgain: () => {
-      let round = 1;
+      let round;
       if (state.mode === "race") {
         const won = state.result?.winner === "player";
         round = won ? state.round + 1 : state.round;
+      } else {
+        // Solo replays continue through the bank instead of resetting
+        round = state.round + 1;
       }
       dispatch({ type: "RACE_AGAIN", round });
     },
+    pause: () => dispatch({ type: "PAUSE" }),
+    resume: () => dispatch({ type: "RESUME" }),
+    restartRun: () =>
+      dispatch({ type: "RESTART", round: dataRef.current?.startRound }),
+    endRun: finishRun,
     toMenu: () => dispatch({ type: "MENU" }),
     peekStart: () => {
       if (state.screen === "racing" && !showAnswers && content === "blanks") {

@@ -49,7 +49,29 @@ export function gameReducer(state, event) {
       if (event.type === "NEXT_SNIPPET") {
         return { ...state, round: state.round + 1 };
       }
+      if (event.type === "PAUSE") {
+        return { ...state, screen: "paused" };
+      }
       if (event.type === "ABORT") {
+        return { ...state, screen: "menu", round: 1, result: null };
+      }
+      return state;
+    case "paused":
+      if (event.type === "RESUME") {
+        return { ...state, screen: "racing" };
+      }
+      if (event.type === "RESTART") {
+        return {
+          ...state,
+          screen: "countdown",
+          round: event.round ?? state.round,
+          result: null,
+        };
+      }
+      if (event.type === "FINISH") {
+        return { ...state, screen: "finished", result: event.stats };
+      }
+      if (event.type === "MENU") {
         return { ...state, screen: "menu", round: 1, result: null };
       }
       return state;
