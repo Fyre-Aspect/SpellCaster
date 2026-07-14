@@ -130,7 +130,3 @@ export function parseTemplate(template) {
 export function totalAnswerChars(answers) {
   return answers.reduce((sum, answer) => sum + answer.length, 0);
 }
-
-export function snippetForRound(round) {
-  return SNIPPETS[(round - 1) % SNIPPETS.length];
-}

@@ -559,6 +559,22 @@ button {
   backdrop-filter: blur(3px);
 }
 
+.crash-overlay {
+  background: var(--paper);
+}
+
+.crash-card {
+  max-width: 420px;
+  transform: rotate(-1deg);
+}
+
+.crash-text {
+  margin: 0;
+  font-family: var(--font-comic);
+  font-size: 16px;
+  font-weight: 700;
+}
+
 .result-card {
   display: flex;
   flex-direction: column;

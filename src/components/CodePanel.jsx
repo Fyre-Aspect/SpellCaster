@@ -70,7 +70,7 @@ function ActiveBlank({ answer, typed, revealed, errorPing, reduced }) {
 }
 
 export default function CodePanel({ game }) {
-  const { segments, snippet, live, peekHeld, peekPenalty, showAnswers } = game;
+  const { challenge, live, peekHeld, peekPenalty, showAnswers } = game;
   const reduced = useReducedMotion();
   return (
     <section className="code-panel">
@@ -103,11 +103,11 @@ export default function CodePanel({ game }) {
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.18, ease: "easeOut" }}
       >
-        {segments.map((seg, i) => {
+        {challenge.segments.map((seg, i) => {
           if (seg.type === "text") {
             return <span key={`t${i}`}>{seg.value}</span>;
           }
-          const answer = snippet.answers[seg.index];
+          const answer = challenge.answers[seg.index];
           if (seg.index < live.blankIndex) {
             return <CompletedBlank key={`b${i}`} answer={answer} />;
           }
