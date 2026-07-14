@@ -2,6 +2,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { MODES } from "../logic/machine.js";
 import { BOT_DIFFICULTIES, DIFFICULTY_ORDER } from "../logic/race.js";
 import { CONTENT_TYPES } from "../data/challenges.js";
+import Sparkline from "./Sparkline.jsx";
 
 const CONTENT_HINTS = {
   blanks: null,
@@ -31,6 +32,7 @@ export default function Menu({
   showAnswers,
   onToggleAnswers,
   onStart,
+  summary,
 }) {
   const reduced = useReducedMotion();
   return (
@@ -86,6 +88,18 @@ export default function Menu({
         ))}
       </div>
       <div className="best-chip">{bestText(selectedMode, best)}</div>
+      {summary && (
+        <div className="stats-card">
+          <span className="stats-line">
+            {summary.count} run{summary.count === 1 ? "" : "s"} &middot; avg{" "}
+            {Math.round(summary.avgWpm)} WPM &middot; best{" "}
+            {Math.round(summary.bestWpm)}
+            {summary.racePlayed > 0 &&
+              ` · ${Math.round((summary.raceWins / summary.racePlayed) * 100)}% race wins`}
+          </span>
+          <Sparkline values={summary.recentWpm} />
+        </div>
+      )}
       <motion.button
         className="btn btn-big"
         autoFocus

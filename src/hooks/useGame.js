@@ -16,6 +16,7 @@ import {
   createBot,
 } from "../logic/race.js";
 import { gameReducer, initialState, MODES } from "../logic/machine.js";
+import { loadHistory, recordRun, summarizeHistory } from "../logic/stats.js";
 
 const ANSWERS_KEY = "spellcaster.show-answers.v1";
 const MODE_KEY = "spellcaster.mode.v1";
@@ -73,6 +74,26 @@ function loadShowAnswers() {
   }
 }
 
+function collectMisses(d) {
+  return d.blankLog.filter((b) => b.wrong > 0 || b.peeked).slice(0, 10);
+}
+
+function recordRunFrom(d, stats) {
+  recordRun({
+    at: Date.now(),
+    mode: stats.mode,
+    difficulty: d.difficulty,
+    content: d.content,
+    wpm: stats.wpm,
+    accuracy: stats.accuracy,
+    timeSeconds: stats.timeSeconds,
+    winner: stats.winner,
+    snippets: d.snippetsCompleted,
+    chars: stats.chars ?? null,
+    round: d.round,
+  });
+}
+
 function emptyLive() {
   return {
     blankIndex: 0,
@@ -107,8 +128,12 @@ export default function useGame() {
     loadChoice(CONTENT_KEY, "blanks", Object.keys(CONTENT_TYPES))
   );
   const [bestBump, setBestBump] = useState(0);
+  const [historyBump, setHistoryBump] = useState(0);
   const dataRef = useRef(null);
   const comboTimerRef = useRef(null);
+
+  const history = useMemo(() => loadHistory(), [historyBump]);
+  const summary = useMemo(() => summarizeHistory(history), [history]);
 
   const challenge = useMemo(
     () => challengeForRound(state.round, content),
@@ -170,7 +195,11 @@ export default function useGame() {
         round: d.round,
         snippetId: d.challenge.id,
         newBest: false,
+        misses: collectMisses(d),
+        blanksTotal: d.blankLog.length,
       };
+      recordRunFrom(d, stats);
+      setHistoryBump((b) => b + 1);
       if (winner === "player") {
         const key = bestKeyFor("race", d.difficulty, d.content);
         const prev = loadJson(key);
@@ -207,7 +236,11 @@ export default function useGame() {
       round: d.round,
       snippetId: d.challenge.id,
       newBest: false,
+      misses: collectMisses(d),
+      blanksTotal: d.blankLog.length,
     };
+    recordRunFrom(d, stats);
+    setHistoryBump((b) => b + 1);
     const key = bestKeyFor(d.mode, d.difficulty, d.content);
     const prev = loadJson(key);
     if (d.mode === "endless") {
@@ -245,6 +278,8 @@ export default function useGame() {
         snippetsCompleted: 0,
         penaltyChars: 0,
         peekedBlanks: new Set(),
+        blankLog: [],
+        currentBlankWrong: 0,
         keystrokes: 0,
         correctKeystrokes: 0,
         streak: 0,
@@ -298,6 +333,7 @@ export default function useGame() {
       if (d.typed.length >= expected.length) {
         d.streak = 0;
         d.errorPing += 1;
+        d.currentBlankWrong += 1;
         syncLive();
         return;
       }
@@ -320,8 +356,15 @@ export default function useGame() {
       } else {
         d.streak = 0;
         d.errorPing += 1;
+        d.currentBlankWrong += 1;
       }
       if (checkAnswer(d.typed, expected)) {
+        d.blankLog.push({
+          answer: expected,
+          wrong: d.currentBlankWrong,
+          peeked: d.peekedBlanks.has(d.blankIndex),
+        });
+        d.currentBlankWrong = 0;
         d.completedChars += expected.length;
         d.blankIndex += 1;
         d.typed = "";
@@ -491,6 +534,8 @@ export default function useGame() {
     challenge,
     live,
     best,
+    history,
+    summary,
     count,
     peekHeld,
     peekPenalty: PEEK_PENALTY_CHARS,

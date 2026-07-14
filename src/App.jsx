@@ -24,6 +24,7 @@ export default function App() {
             showAnswers={game.showAnswers}
             onToggleAnswers={game.toggleAnswers}
             onStart={game.start}
+            summary={game.summary}
           />
         ) : (
           <RaceScreen key="race" game={game} />
@@ -51,6 +52,7 @@ export default function App() {
           <Finished
             key="finished"
             result={game.result}
+            summary={game.summary}
             onRaceAgain={game.raceAgain}
             onMenu={game.toMenu}
           />

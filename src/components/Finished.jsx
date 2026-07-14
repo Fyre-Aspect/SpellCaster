@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from "motion/react";
 
-export default function Finished({ result, onRaceAgain, onMenu }) {
+export default function Finished({ result, summary, onRaceAgain, onMenu }) {
   const reduced = useReducedMotion();
   const isRace = result.mode === "race";
   const won = isRace && result.winner === "player";
@@ -71,6 +71,30 @@ export default function Finished({ result, onRaceAgain, onMenu }) {
             </div>
           ))}
         </dl>
+        {summary && summary.count > 1 && (
+          <p className="wpm-delta">
+            {result.wpm >= summary.avgWpm ? "+" : ""}
+            {Math.round(result.wpm - summary.avgWpm)} WPM vs your average
+          </p>
+        )}
+        {result.misses?.length > 0 ? (
+          <div className="miss-section">
+            <h3 className="miss-title">Trouble spots</h3>
+            <ul className="miss-list">
+              {result.misses.map((m, i) => (
+                <li key={i}>
+                  <code className="miss-answer">{m.answer}</code>
+                  {m.wrong > 0 && (
+                    <span className="miss-badge">&times;{m.wrong} wrong</span>
+                  )}
+                  {m.peeked && <span className="miss-badge peeked">peeked</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : result.blanksTotal > 0 ? (
+          <p className="miss-flawless">Flawless — no trouble spots!</p>
+        ) : null}
         <div className="result-actions">
           <motion.button
             className="btn btn-big"
