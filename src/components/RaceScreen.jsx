@@ -26,6 +26,8 @@ export default function RaceScreen({ game }) {
           botProgress={game.live.botProgress}
           showBot={game.mode === "race"}
           reducedMotion={!!reduced}
+          finished={game.screen === "finished"}
+          winner={game.result?.winner ?? "player"}
         />
       </div>
       <Hud

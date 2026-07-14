@@ -399,6 +399,22 @@ button {
   gap: 5px;
 }
 
+.finish-banner {
+  font-family: var(--font-comic);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: var(--ink);
+  background: var(--yellow);
+  border: 2.5px solid var(--ink);
+  border-radius: 8px;
+  padding: 3px 10px;
+  box-shadow: 2px 2px 0 var(--ink);
+  transform: rotate(-2deg);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .race-screen {
   height: 100%;
   display: flex;
