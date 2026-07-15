@@ -10,8 +10,11 @@ export default function RaceScreen({ game }) {
     game.mode === "race"
       ? `Round ${game.round} · Bot: ${BOT_DIFFICULTIES[game.difficulty].label}`
       : game.mode === "endless"
-        ? `Endless · ${game.live.snippets} snippets done`
-        : `Time Trial · ${game.live.snippets} snippets done`;
+        ? `Endless · ${game.live.snippets} finished`
+        : `Time Trial · ${game.live.snippets} finished`;
+  const stars =
+    "★".repeat(game.challenge.difficulty) +
+    "☆".repeat(Math.max(0, 3 - game.challenge.difficulty));
   return (
     <motion.div
       className="race-screen"
@@ -39,11 +42,7 @@ export default function RaceScreen({ game }) {
       <CodePanel game={game} />
       <footer className="race-footer">
         <span>{modeLabel}</span>
-        <span>
-          {game.content === "sentences" ? "Sentence" : "Snippet"}:{" "}
-          {game.challenge.id}
-        </span>
-        <span>Difficulty {game.challenge.difficulty} / 3</span>
+        <span>Challenge level: {stars}</span>
         {game.mode !== "race" && (
           <button
             type="button"

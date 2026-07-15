@@ -380,6 +380,19 @@ button {
   justify-content: center;
 }
 
+.ai-chip {
+  font-family: var(--font-comic);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--green-dark);
+  background: rgba(6, 214, 160, 0.12);
+  border: 2.5px solid var(--green-dark);
+  border-radius: 999px;
+  padding: 4px 14px;
+  box-shadow: 2px 2px 0 var(--ink);
+  transform: rotate(-0.8deg);
+}
+
 .mute-btn {
   align-self: center;
   font-size: 17px;

@@ -13,15 +13,15 @@ const CONTENT_HINTS = {
 function bestText(mode, best) {
   if (!best) return "No record yet — set one!";
   if (mode === "race") {
-    return `Best win: ${Math.round(best.wpm)} WPM in ${best.timeSeconds.toFixed(1)}s`;
+    return `Best win: speed ${Math.round(best.wpm)} in ${best.timeSeconds.toFixed(1)}s`;
   }
   if (mode === "battle") {
-    return `Best duel win: ${Math.round(best.wpm)} WPM in ${best.timeSeconds.toFixed(1)}s`;
+    return `Best duel win: speed ${Math.round(best.wpm)} in ${best.timeSeconds.toFixed(1)}s`;
   }
   if (mode === "endless") {
-    return `Best run: ${Math.round(best.wpm)} WPM · ${best.snippets} snippets`;
+    return `Best run: speed ${Math.round(best.wpm)} · ${best.snippets} finished`;
   }
-  return `Best trial: ${best.chars} chars (${Math.round(best.wpm)} WPM)`;
+  return `Best trial: ${best.chars} points (speed ${Math.round(best.wpm)})`;
 }
 
 export default function Menu({
@@ -36,6 +36,7 @@ export default function Menu({
   onToggleAnswers,
   onStart,
   summary,
+  aiCount,
   muted,
   onToggleMute,
 }) {
@@ -95,11 +96,16 @@ export default function Menu({
         </div>
       )}
       <div className="best-chip">{bestText(selectedMode, best)}</div>
+      {aiCount > 0 && (
+        <div className="ai-chip">
+          ✨ {aiCount} fresh AI challenges in today&apos;s mix
+        </div>
+      )}
       {summary && (
         <div className="stats-card">
           <span className="stats-line">
-            {summary.count} run{summary.count === 1 ? "" : "s"} &middot; avg{" "}
-            {Math.round(summary.avgWpm)} WPM &middot; best{" "}
+            {summary.count} game{summary.count === 1 ? "" : "s"} &middot; avg
+            speed {Math.round(summary.avgWpm)} &middot; best{" "}
             {Math.round(summary.bestWpm)}
             {summary.racePlayed > 0 &&
               ` · ${Math.round((summary.raceWins / summary.racePlayed) * 100)}% race wins`}
@@ -149,13 +155,13 @@ export default function Menu({
               </li>
             ) : (
               <li>
-                Answers are hidden — hold Ctrl to peek (costs 4 chars of
+                Answers are hidden — hold Ctrl to peek (costs a little
                 progress)
               </li>
             )}
             <li>
-              Backspace fixes mistakes &middot; brackets auto-close like your
-              editor &middot; Enter finishes closing brackets
+              Backspace fixes slips &middot; brackets close themselves as you
+              type &middot; Enter finishes lines that end in {") } ;"}
             </li>
             {selectedMode === "race" ? (
               <li>Press Enter to start &middot; Esc pauses</li>

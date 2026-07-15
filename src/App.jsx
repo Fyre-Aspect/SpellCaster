@@ -26,6 +26,7 @@ export default function App() {
             onToggleAnswers={game.toggleAnswers}
             onStart={game.start}
             summary={game.summary}
+            aiCount={game.aiCount}
             muted={game.muted}
             onToggleMute={game.toggleMute}
           />

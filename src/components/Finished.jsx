@@ -33,21 +33,21 @@ export default function Finished({ result, summary, onRaceAgain, onMenu }) {
     : isRace
       ? [
           ["Time", `${result.timeSeconds.toFixed(1)}s`],
-          ["WPM", Math.round(result.wpm)],
+          ["Speed", Math.round(result.wpm)],
           ["Accuracy", `${Math.round(result.accuracy)}%`],
           ["Round", result.round],
         ]
       : result.mode === "trial"
         ? [
-            ["Chars", result.chars],
-            ["Snippets", result.snippets],
-            ["WPM", Math.round(result.wpm)],
+            ["Score", result.chars],
+            ["Finished", result.snippets],
+            ["Speed", Math.round(result.wpm)],
             ["Accuracy", `${Math.round(result.accuracy)}%`],
           ]
         : [
-            ["Snippets", result.snippets],
+            ["Finished", result.snippets],
             ["Time", `${result.timeSeconds.toFixed(1)}s`],
-            ["WPM", Math.round(result.wpm)],
+            ["Speed", Math.round(result.wpm)],
             ["Accuracy", `${Math.round(result.accuracy)}%`],
           ];
   return (
@@ -94,8 +94,10 @@ export default function Finished({ result, summary, onRaceAgain, onMenu }) {
         </dl>
         {summary && summary.count > 1 && (
           <p className="wpm-delta">
-            {result.wpm >= summary.avgWpm ? "+" : ""}
-            {Math.round(result.wpm - summary.avgWpm)} WPM vs your average
+            {result.wpm >= summary.avgWpm ? "▲ " : "▼ "}
+            {Math.abs(Math.round(result.wpm - summary.avgWpm))}{" "}
+            {result.wpm >= summary.avgWpm ? "faster" : "slower"} than your
+            usual speed
           </p>
         )}
         {result.misses?.length > 0 ? (

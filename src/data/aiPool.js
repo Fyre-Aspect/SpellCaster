@@ -5,7 +5,8 @@
 const STORE_KEY = "spellcaster.aipool.v1";
 const REFRESH_MS = 12 * 60 * 60 * 1000;
 const API_KEY = import.meta.env?.VITE_GEMINI_API_KEY;
-const MODEL = "gemini-2.5-flash";
+// First model that answers wins; later entries are fallbacks
+const MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"];
 
 const EMPTY = {
   snippets: [],
@@ -39,7 +40,11 @@ export function aiIncantations(tier) {
   return pool.incantations[tier] ?? [];
 }
 
-const PROMPT = `You generate content for a cartoon typing game about JavaScript. Reply with ONLY a JSON object, no markdown, matching exactly:
+export function aiPoolCount() {
+  return pool.snippets.length + pool.sentences.length;
+}
+
+export const PROMPT = `You generate content for a cartoon typing game about JavaScript. Reply with ONLY a JSON object, no markdown, matching exactly:
 {
   "snippets": [{ "id": "kebab-slug", "difficulty": 1, "template": "const x = arr.@@(@@);", "answers": ["map", "n => n + 1"] }],
   "sentences": [{ "id": "kebab-slug", "difficulty": 1, "text": "A short motivational sentence about coding or typing." }],
@@ -55,7 +60,7 @@ function cleanString(s, maxLen) {
   return typeof s === "string" && s.length > 0 && s.length <= maxLen;
 }
 
-function sanitize(data) {
+export function sanitize(data) {
   if (!data || typeof data !== "object") return null;
   const snippets = (Array.isArray(data.snippets) ? data.snippets : [])
     .filter(
@@ -107,37 +112,46 @@ export function refreshAiPool() {
   }
   if (inFlight) return inFlight;
   inFlight = (async () => {
+    let lastError = null;
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(API_KEY)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: PROMPT }] }],
-            generationConfig: {
-              responseMimeType: "application/json",
-              temperature: 1.1,
-            },
-          }),
+      for (const model of MODELS) {
+        try {
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-goog-api-key": API_KEY,
+              },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: PROMPT }] }],
+                generationConfig: {
+                  responseMimeType: "application/json",
+                  temperature: 1.1,
+                },
+              }),
+            }
+          );
+          if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`);
+          const body = await res.json();
+          const text = body?.candidates?.[0]?.content?.parts?.[0]?.text;
+          const next = sanitize(JSON.parse(text));
+          if (!next) throw new Error("Gemini reply failed validation");
+          pool = { ...next, fetchedAt: Date.now() };
+          try {
+            localStorage.setItem(STORE_KEY, JSON.stringify(pool));
+          } catch {
+            /* storage unavailable */
+          }
+          return true;
+        } catch (err) {
+          lastError = err;
         }
-      );
-      if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`);
-      const body = await res.json();
-      const text = body?.candidates?.[0]?.content?.parts?.[0]?.text;
-      const next = sanitize(JSON.parse(text));
-      if (!next) throw new Error("Gemini reply failed validation");
-      pool = { ...next, fetchedAt: Date.now() };
-      try {
-        localStorage.setItem(STORE_KEY, JSON.stringify(pool));
-      } catch {
-        /* storage unavailable */
       }
-      return true;
-    } catch (err) {
       console.warn(
         "[spellcaster] AI content refresh failed — using built-in banks:",
-        err
+        lastError
       );
       return false;
     } finally {

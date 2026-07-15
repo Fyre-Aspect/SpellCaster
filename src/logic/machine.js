@@ -14,7 +14,7 @@ export const MODES = {
   endless: {
     id: "endless",
     label: "Endless Solo",
-    desc: "Chill run — type snippets forever",
+    desc: "Chill run — type as long as you like",
     startLabel: "Start Run",
   },
   trial: {

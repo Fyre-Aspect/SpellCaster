@@ -20,7 +20,7 @@ import {
   incantationFor,
   tickBattle,
 } from "../logic/battle.js";
-import { refreshAiPool } from "../data/aiPool.js";
+import { aiPoolCount, refreshAiPool } from "../data/aiPool.js";
 import {
   BOT_DIFFICULTIES,
   computeAccuracy,
@@ -184,9 +184,11 @@ export default function useGame() {
   );
   const [bestBump, setBestBump] = useState(0);
   const [historyBump, setHistoryBump] = useState(0);
+  const [aiBump, setAiBump] = useState(0);
   const [muted, setMuted] = useState(isMuted);
   const dataRef = useRef(null);
   const comboTimerRef = useRef(null);
+  const castPopTimerRef = useRef(null);
 
   const history = useMemo(() => loadHistory(), [historyBump]);
   const summary = useMemo(() => summarizeHistory(history), [history]);
@@ -510,6 +512,15 @@ export default function useGame() {
         d.selectedSpell = null;
         d.answers = [];
         d.blankIndex = 0;
+        const seq = d.castSeq;
+        if (castPopTimerRef.current) clearTimeout(castPopTimerRef.current);
+        castPopTimerRef.current = setTimeout(() => {
+          const cur = dataRef.current;
+          if (cur && cur.lastCast?.seq === seq) {
+            cur.lastCast = null;
+            syncLive();
+          }
+        }, 1400);
         goBeep();
         if (d.battle.over) {
           finishBattle(d.battle.winner);
@@ -527,7 +538,7 @@ export default function useGame() {
       }
       return false;
     },
-    [advanceSnippet, finishRace, finishBattle]
+    [advanceSnippet, finishRace, finishBattle, syncLive]
   );
 
   const typeChar = useCallback(
@@ -816,12 +827,18 @@ export default function useGame() {
 
   useEffect(() => {
     initAudio();
-    refreshAiPool();
+    refreshAiPool().then((updated) => {
+      if (updated) setAiBump((b) => b + 1);
+    });
   }, []);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- aiBump re-reads the pool
+  const aiCount = useMemo(() => aiPoolCount(), [aiBump]);
 
   useEffect(() => {
     return () => {
       if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
+      if (castPopTimerRef.current) clearTimeout(castPopTimerRef.current);
     };
   }, []);
 
@@ -835,6 +852,7 @@ export default function useGame() {
     best,
     history,
     summary,
+    aiCount,
     count,
     peekHeld,
     peekPenalty: PEEK_PENALTY_CHARS,
