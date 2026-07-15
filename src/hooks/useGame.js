@@ -40,6 +40,21 @@ const PEEK_PENALTY_CHARS = 4;
 const COMBO_STEP = 10;
 const COMBO_VISIBLE_MS = 1000;
 
+// IDE-style pairs: typing the opener when its mate is the very next expected
+// char inserts both, like an editor's auto-close
+const AUTO_PAIRS = {
+  "(": ")",
+  "[": "]",
+  "{": "}",
+  '"': '"',
+  "'": "'",
+  "`": "`",
+};
+
+// A trailing run of closers/punctuation that Enter may complete in one press
+const CLOSER_TAIL_RE = /^[)\]};,\s]*$/;
+const HAS_CLOSER_RE = /[)\]}]/;
+
 function bestKeyFor(mode, difficulty, content) {
   return mode === "race"
     ? `spellcaster.best.race.${difficulty}.${content}.v1`
@@ -292,6 +307,8 @@ export default function useGame() {
         total: totalAnswerChars(c.answers),
         blankIndex: 0,
         typed: "",
+        autoClosedChar: null,
+        autoClosedAt: -1,
         completedChars: 0,
         runChars: 0,
         snippetsCompleted: 0,
@@ -343,11 +360,52 @@ export default function useGame() {
     }
   }, [syncLive]);
 
+  // Returns true when the race just finished (caller should stop)
+  const completeBlank = useCallback(
+    (d, expected) => {
+      d.blankLog.push({
+        answer: expected,
+        wrong: d.currentBlankWrong,
+        peeked: d.peekedBlanks.has(d.blankIndex),
+      });
+      d.currentBlankWrong = 0;
+      d.completedChars += expected.length;
+      d.blankIndex += 1;
+      d.typed = "";
+      d.autoClosedChar = null;
+      d.autoClosedAt = -1;
+      if (d.blankIndex >= d.answers.length) {
+        if (d.mode === "race") {
+          finishRace("player");
+          return true;
+        }
+        advanceSnippet(d);
+      }
+      return false;
+    },
+    [advanceSnippet, finishRace]
+  );
+
   const typeChar = useCallback(
     (key) => {
       const d = dataRef.current;
       if (!d || d.finished) return;
       const expected = d.answers[d.blankIndex];
+      // VS Code-style type-over: pressing the closer we just auto-inserted
+      // is absorbed instead of counting as a mistake
+      if (
+        d.autoClosedChar === key &&
+        d.autoClosedAt === d.typed.length &&
+        key !== expected[d.typed.length]
+      ) {
+        d.keystrokes += 1;
+        d.correctKeystrokes += 1;
+        d.autoClosedChar = null;
+        d.autoClosedAt = -1;
+        keyTick(d.streak);
+        syncLive();
+        return;
+      }
       d.keystrokes += 1;
       if (d.typed.length >= expected.length) {
         d.streak = 0;
@@ -363,6 +421,12 @@ export default function useGame() {
         d.correctKeystrokes += 1;
         d.streak += 1;
         keyTick(d.streak);
+        const closer = AUTO_PAIRS[key];
+        if (closer && expected[d.typed.length] === closer) {
+          d.typed += closer;
+          d.autoClosedChar = closer;
+          d.autoClosedAt = d.typed.length;
+        }
         if (d.streak % COMBO_STEP === 0) {
           comboPop();
           d.comboSeq += 1;
@@ -382,27 +446,31 @@ export default function useGame() {
         errorBuzz();
       }
       if (checkAnswer(d.typed, expected)) {
-        d.blankLog.push({
-          answer: expected,
-          wrong: d.currentBlankWrong,
-          peeked: d.peekedBlanks.has(d.blankIndex),
-        });
-        d.currentBlankWrong = 0;
-        d.completedChars += expected.length;
-        d.blankIndex += 1;
-        d.typed = "";
-        if (d.blankIndex >= d.answers.length) {
-          if (d.mode === "race") {
-            finishRace("player");
-            return;
-          }
-          advanceSnippet(d);
-        }
+        if (completeBlank(d, expected)) return;
       }
       syncLive();
     },
-    [advanceSnippet, finishRace, syncLive]
+    [completeBlank, syncLive]
   );
+
+  // Enter finishes a trailing run of closing brackets (e.g. "});" or ")"),
+  // like an editor where those chars were auto-inserted already
+  const typeEnter = useCallback(() => {
+    const d = dataRef.current;
+    if (!d || d.finished) return;
+    const expected = d.answers[d.blankIndex] ?? "";
+    const rest = expected.slice(d.typed.length);
+    if (!rest || !CLOSER_TAIL_RE.test(rest) || !HAS_CLOSER_RE.test(rest)) {
+      return;
+    }
+    d.keystrokes += 1;
+    d.correctKeystrokes += 1;
+    d.streak += 1;
+    keyTick(d.streak);
+    d.typed = expected;
+    if (completeBlank(d, expected)) return;
+    syncLive();
+  }, [completeBlank, syncLive]);
 
   useEffect(() => {
     if (state.screen !== "countdown") return;
@@ -510,11 +578,18 @@ export default function useGame() {
         return;
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        typeEnter();
+        return;
+      }
       if (e.key === "Backspace") {
         e.preventDefault();
         const d = dataRef.current;
         if (d && !d.finished && d.typed.length > 0) {
           d.typed = d.typed.slice(0, -1);
+          d.autoClosedChar = null;
+          d.autoClosedAt = -1;
           syncLive();
         }
         return;
@@ -545,6 +620,7 @@ export default function useGame() {
     content,
     applyPeekPenalty,
     typeChar,
+    typeEnter,
     finishRun,
     syncLive,
   ]);

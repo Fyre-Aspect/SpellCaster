@@ -30,7 +30,7 @@ export default function Hud({ live, mode, muted, onToggleMute }) {
       <div className="stat stat-wide">
         <div className="progress-row">
           <span className="stat-label player-label">You</span>
-          <div className="bar">
+          <div className="bar player-bar">
             <div className="bar-fill player" style={{ width: `${playerPct}%` }} />
           </div>
           <span className="pct">{playerPct}%</span>
@@ -38,7 +38,7 @@ export default function Hud({ live, mode, muted, onToggleMute }) {
         {mode === "race" && (
           <div className="progress-row">
             <span className="stat-label bot-label">Bot</span>
-            <div className="bar">
+            <div className="bar bot-bar">
               <div className="bar-fill bot" style={{ width: `${botPct}%` }} />
             </div>
             <span className="pct">{botPct}%</span>

@@ -44,6 +44,18 @@ export default function RaceScreen({ game }) {
           {game.challenge.id}
         </span>
         <span>Difficulty {game.challenge.difficulty} / 3</span>
+        {game.mode !== "race" && (
+          <button
+            type="button"
+            className="end-run-btn"
+            onClick={(e) => {
+              e.currentTarget.blur();
+              game.endRun();
+            }}
+          >
+            &#9209; End &amp; Score
+          </button>
+        )}
       </footer>
     </motion.div>
   );

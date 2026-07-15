@@ -45,6 +45,7 @@ body {
 
 .app {
   height: 100%;
+  height: 100dvh;
 }
 
 button {
@@ -114,6 +115,7 @@ button {
 }
 
 .mode-btn {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -127,15 +129,41 @@ button {
   padding: 12px 20px;
   cursor: pointer;
   box-shadow: 4px 4px 0 var(--ink);
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
 }
 
 .mode-btn:hover {
+  transform: translate(-2px, -2px) rotate(-0.6deg);
   box-shadow: 6px 6px 0 var(--ink);
 }
 
 .mode-btn.selected {
   background: var(--yellow);
   transform: rotate(-1deg);
+}
+
+.mode-btn.selected:hover {
+  transform: translate(-2px, -2px) rotate(-1.4deg);
+}
+
+.mode-btn.selected::after {
+  content: "\2605 PICKED";
+  position: absolute;
+  top: -12px;
+  right: -10px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: #fffdf5;
+  background: var(--red);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  padding: 2px 8px;
+  transform: rotate(6deg);
+  box-shadow: 2px 2px 0 var(--ink);
+  pointer-events: none;
 }
 
 .mode-name {
@@ -320,7 +348,9 @@ button {
   color: var(--yellow);
   -webkit-text-stroke: 3px var(--ink);
   paint-order: stroke fill;
-  text-shadow: 6px 6px 0 var(--red);
+  text-shadow:
+    3px 3px 0 var(--ink),
+    7px 7px 0 var(--red);
   transform: rotate(-2deg);
 }
 
@@ -367,6 +397,7 @@ button {
 }
 
 .stats-card {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -374,12 +405,33 @@ button {
   font-size: 13px;
   font-weight: 700;
   color: var(--ink-dim);
-  background: var(--panel);
+  background:
+    repeating-linear-gradient(
+      transparent,
+      transparent 13px,
+      rgba(47, 111, 228, 0.12) 13px,
+      rgba(47, 111, 228, 0.12) 14px
+    ),
+    var(--panel);
   border: 3px solid var(--ink);
-  border-radius: 14px;
-  padding: 8px 18px;
+  border-radius: 6px;
+  padding: 10px 18px;
   box-shadow: 3px 3px 0 var(--ink);
   transform: rotate(0.6deg);
+}
+
+.stats-card::before {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 72px;
+  height: 18px;
+  transform: translateX(-50%) rotate(-3deg);
+  background: rgba(255, 210, 63, 0.75);
+  border: 2px solid rgba(28, 28, 40, 0.35);
+  border-radius: 2px;
+  pointer-events: none;
 }
 
 .sparkline {
@@ -422,8 +474,7 @@ button {
 }
 
 .track-wrap {
-  height: 34vh;
-  min-height: 200px;
+  height: clamp(160px, 30vh, 340px);
   border-bottom: 3px solid var(--ink);
 }
 
@@ -474,6 +525,18 @@ button {
   box-shadow: 3px 3px 0 var(--ink);
 }
 
+.hud .stat:nth-child(odd) {
+  transform: rotate(-0.8deg);
+}
+
+.hud .stat:nth-child(even) {
+  transform: rotate(0.8deg);
+}
+
+.hud .stat.stat-wide {
+  transform: none;
+}
+
 .stat-label {
   font-size: 11px;
   font-weight: 800;
@@ -503,6 +566,7 @@ button {
 
 .progress-row .stat-label {
   width: 34px;
+  font-weight: 900;
 }
 
 .player-label {
@@ -522,17 +586,33 @@ button {
   overflow: hidden;
 }
 
+.bar.player-bar {
+  border-color: var(--player);
+  background: rgba(47, 111, 228, 0.08);
+}
+
+.bar.bot-bar {
+  border-color: var(--bot);
+  background: rgba(239, 71, 111, 0.08);
+}
+
 .bar-fill {
   height: 100%;
   transition: width 90ms linear;
+  background-image: radial-gradient(
+    circle,
+    rgba(255, 253, 245, 0.4) 1.3px,
+    transparent 1.3px
+  );
+  background-size: 7px 7px;
 }
 
 .bar-fill.player {
-  background: var(--player);
+  background-color: var(--player);
 }
 
 .bar-fill.bot {
-  background: var(--bot);
+  background-color: var(--bot);
 }
 
 .pct {
@@ -557,10 +637,13 @@ button {
 }
 
 .code {
+  position: relative;
   margin: 0;
   font-family: var(--font-mono);
   font-size: clamp(15px, 2.2vw, 21px);
   line-height: 1.85;
+  /* pre-wrap + overflow-wrap keep lines inside — no scrollbar needed,
+     which lets the tape corners hang past the border */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: var(--ink);
@@ -569,8 +652,30 @@ button {
   border-radius: 16px;
   padding: 24px 32px;
   max-width: 100%;
-  overflow-x: auto;
   box-shadow: 6px 6px 0 var(--ink);
+}
+
+.code::before,
+.code::after {
+  content: "";
+  position: absolute;
+  top: -11px;
+  width: 74px;
+  height: 21px;
+  background: rgba(255, 210, 63, 0.7);
+  border: 2px solid rgba(28, 28, 40, 0.35);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.code::before {
+  left: -16px;
+  transform: rotate(-38deg);
+}
+
+.code::after {
+  right: -16px;
+  transform: rotate(38deg);
 }
 
 .blank {
@@ -618,11 +723,12 @@ button {
 
 .caret {
   display: inline-block;
-  width: 3px;
+  width: 4px;
   height: 1.15em;
   margin: 0 -1px;
   vertical-align: text-bottom;
   background: var(--red);
+  border-radius: 2px;
   animation: caret-blink 1s steps(1) infinite;
 }
 
@@ -634,18 +740,59 @@ button {
 
 .combo-pop {
   position: absolute;
-  top: 10px;
+  top: 6px;
   right: 8%;
   font-family: var(--font-comic);
   font-weight: 800;
   font-size: 19px;
   color: var(--ink);
-  background: var(--yellow);
-  border: 3px solid var(--ink);
-  border-radius: 14px;
-  padding: 8px 20px;
-  box-shadow: 4px 4px 0 var(--ink);
+  padding: 26px 38px;
   z-index: 5;
+  filter: drop-shadow(3px 3px 0 rgba(28, 28, 40, 0.55));
+}
+
+/* 12-point comic starburst behind the combo text */
+.combo-pop::before,
+.combo-pop::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  clip-path: polygon(
+    50% 0%,
+    58.8% 17.2%,
+    75% 6.7%,
+    74% 26%,
+    93.3% 25%,
+    82.8% 41.2%,
+    100% 50%,
+    82.8% 58.8%,
+    93.3% 75%,
+    74% 74%,
+    75% 93.3%,
+    58.8% 82.8%,
+    50% 100%,
+    41.2% 82.8%,
+    25% 93.3%,
+    26% 74%,
+    6.7% 75%,
+    17.2% 58.8%,
+    0% 50%,
+    17.2% 41.2%,
+    6.7% 25%,
+    26% 26%,
+    25% 6.7%,
+    41.2% 17.2%
+  );
+}
+
+.combo-pop::before {
+  inset: 0;
+  background: var(--red);
+}
+
+.combo-pop::after {
+  inset: 7px 10px;
+  background: var(--yellow);
 }
 
 .peek-row {
@@ -685,6 +832,7 @@ button {
 .race-footer {
   display: flex;
   justify-content: center;
+  align-items: center;
   gap: 28px;
   padding: 11px;
   border-top: 3px solid var(--ink);
@@ -692,6 +840,25 @@ button {
   color: var(--ink-dim);
   font-size: 13px;
   font-weight: 700;
+}
+
+.end-run-btn {
+  font-family: var(--font-comic);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--red);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  padding: 3px 12px;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.end-run-btn:hover {
+  background: var(--yellow);
+  color: var(--ink);
 }
 
 .overlay {
@@ -842,6 +1009,116 @@ button {
   color: var(--ink-dim);
 }
 
+@media (max-height: 700px) {
+  .track-wrap {
+    height: clamp(130px, 24vh, 220px);
+  }
+
+  .hud {
+    padding: 8px 16px;
+    gap: 10px;
+  }
+
+  .stat {
+    padding: 5px 12px;
+    min-width: 80px;
+  }
+
+  .stat-value {
+    font-size: 17px;
+  }
+
+  .code {
+    padding: 14px 20px;
+    line-height: 1.6;
+  }
+
+  .code-panel {
+    gap: 10px;
+    padding: 8px 22px;
+  }
+
+  .race-footer {
+    padding: 7px;
+  }
+
+  .menu {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .title {
+    letter-spacing: 3px;
+  }
+
+  .mode-row {
+    width: 100%;
+  }
+
+  .mode-btn {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .track-wrap {
+    height: clamp(130px, 26vh, 220px);
+  }
+
+  .hud {
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .stat {
+    flex: 1 1 calc(50% - 26px);
+    min-width: 0;
+  }
+
+  .stat-value {
+    font-size: clamp(16px, 4.5vw, 21px);
+  }
+
+  .stat-wide {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .code {
+    padding: 16px 18px;
+    font-size: clamp(13px, 3.8vw, 16px);
+  }
+
+  .combo-pop {
+    right: 4%;
+    font-size: 15px;
+    padding: 20px 28px;
+  }
+
+  .peek-row {
+    flex-wrap: wrap;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .race-footer {
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    padding: 8px;
+  }
+
+  .result-card {
+    padding: 26px 24px;
+    max-width: calc(100vw - 32px);
+  }
+
+  .result-stats {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px 24px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .caret {
     animation: none;
@@ -849,5 +1126,17 @@ button {
 
   .bar-fill {
     transition: none;
+  }
+
+  .mode-btn {
+    transition: none;
+  }
+
+  .mode-btn:hover {
+    transform: none;
+  }
+
+  .mode-btn.selected:hover {
+    transform: rotate(-1deg);
   }
 }

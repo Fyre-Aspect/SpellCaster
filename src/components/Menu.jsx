@@ -129,11 +129,17 @@ export default function Menu({
         ) : (
           <li>Answers are hidden — hold Ctrl to peek (costs 4 chars of progress)</li>
         )}
-        <li>Backspace fixes mistakes in the current blank</li>
+        <li>
+          Backspace fixes mistakes &middot; brackets auto-close like your
+          editor &middot; Enter finishes closing brackets
+        </li>
         {selectedMode === "race" ? (
-          <li>Press Enter to start &middot; Esc quits a race</li>
+          <li>Press Enter to start &middot; Esc pauses</li>
         ) : (
-          <li>Press Enter to start &middot; Esc ends a solo run</li>
+          <li>
+            Press Enter to start &middot; Esc pauses &middot; End &amp; Score
+            wraps up your run
+          </li>
         )}
       </ul>
     </motion.section>
