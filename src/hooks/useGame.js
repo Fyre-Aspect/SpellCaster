@@ -409,6 +409,8 @@ export default function useGame() {
         typed: "",
         autoClosedChar: null,
         autoClosedAt: -1,
+        castKeystrokes: 0,
+        castCorrect: 0,
         completedChars: 0,
         runChars: 0,
         snippetsCompleted: 0,
@@ -533,6 +535,8 @@ export default function useGame() {
       const d = dataRef.current;
       if (!d || d.finished) return;
       const expected = d.answers[d.blankIndex];
+      // Battle mode: nothing to type until a spell is picked
+      if (expected == null) return;
       // VS Code-style type-over: pressing the closer we just auto-inserted
       // is absorbed instead of counting as a mistake
       if (
@@ -542,6 +546,8 @@ export default function useGame() {
       ) {
         d.keystrokes += 1;
         d.correctKeystrokes += 1;
+        d.castKeystrokes += 1;
+        d.castCorrect += 1;
         d.autoClosedChar = null;
         d.autoClosedAt = -1;
         keyTick(d.streak);
@@ -549,6 +555,7 @@ export default function useGame() {
         return;
       }
       d.keystrokes += 1;
+      d.castKeystrokes += 1;
       if (d.typed.length >= expected.length) {
         d.streak = 0;
         d.errorPing += 1;
@@ -557,10 +564,14 @@ export default function useGame() {
         syncLive();
         return;
       }
-      const correct = key === expected[d.typed.length];
+      const mask = maskFor(d, expected);
+      const correct =
+        key === expected[d.typed.length] ||
+        (mask?.[d.typed.length] ?? false);
       d.typed += key;
       if (correct) {
         d.correctKeystrokes += 1;
+        d.castCorrect += 1;
         d.streak += 1;
         keyTick(d.streak);
         const closer = AUTO_PAIRS[key];
@@ -587,7 +598,7 @@ export default function useGame() {
         d.currentBlankWrong += 1;
         errorBuzz();
       }
-      if (checkAnswer(d.typed, expected)) {
+      if (checkAnswer(d.typed, expected, mask)) {
         if (completeBlank(d, expected)) return;
       }
       syncLive();
@@ -607,12 +618,35 @@ export default function useGame() {
     }
     d.keystrokes += 1;
     d.correctKeystrokes += 1;
+    d.castKeystrokes += 1;
+    d.castCorrect += 1;
     d.streak += 1;
     keyTick(d.streak);
     d.typed = expected;
     if (completeBlank(d, expected)) return;
     syncLive();
   }, [completeBlank, syncLive]);
+
+  const selectSpell = useCallback(
+    (spellId) => {
+      const d = dataRef.current;
+      if (!d || d.finished || d.mode !== "battle") return;
+      if (d.selectedSpell === spellId) return;
+      d.selectedSpell = spellId;
+      d.answers = [incantationFor(spellId)];
+      d.blankIndex = 0;
+      d.typed = "";
+      d.autoClosedChar = null;
+      d.autoClosedAt = -1;
+      d.currentBlankWrong = 0;
+      d.castStart = d.elapsed;
+      d.castKeystrokes = 0;
+      d.castCorrect = 0;
+      uiClick();
+      syncLive();
+    },
+    [syncLive]
+  );
 
   useEffect(() => {
     if (state.screen !== "countdown") return;
@@ -650,6 +684,13 @@ export default function useGame() {
           d.botChars += d.bot.tick(dt);
           if (d.botChars >= d.total) finishRace("bot");
           else syncLive();
+        } else if (d.mode === "battle") {
+          const events = tickBattle(d.battle, dt);
+          for (const ev of events) {
+            if (ev.type === "enemyHit") errorBuzz();
+          }
+          if (d.battle.over) finishBattle(d.battle.winner);
+          else syncLive();
         } else if (d.timeLimit != null && d.elapsed >= d.timeLimit) {
           finishRun();
         } else {
@@ -660,7 +701,7 @@ export default function useGame() {
     };
     rafId = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(rafId);
-  }, [state.screen, finishRace, finishRun, syncLive]);
+  }, [state.screen, finishRace, finishRun, finishBattle, syncLive]);
 
   useEffect(() => {
     function onKeyDown(e) {
@@ -720,6 +761,11 @@ export default function useGame() {
         return;
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (dataRef.current?.mode === "battle" && /^[1-5]$/.test(e.key)) {
+        e.preventDefault();
+        selectSpell(SPELL_ORDER[Number(e.key) - 1]);
+        return;
+      }
       if (e.key === "Enter") {
         e.preventDefault();
         typeEnter();
@@ -763,11 +809,15 @@ export default function useGame() {
     applyPeekPenalty,
     typeChar,
     typeEnter,
+    selectSpell,
     finishRun,
     syncLive,
   ]);
 
-  useEffect(() => initAudio(), []);
+  useEffect(() => {
+    initAudio();
+    refreshAiPool();
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -831,6 +881,7 @@ export default function useGame() {
     },
     pause: () => dispatch({ type: "PAUSE" }),
     resume: () => dispatch({ type: "RESUME" }),
+    selectSpell,
     restartRun: () =>
       dispatch({ type: "RESTART", round: dataRef.current?.startRound }),
     endRun: finishRun,

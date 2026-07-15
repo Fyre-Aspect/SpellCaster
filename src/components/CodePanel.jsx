@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { charStates } from "../logic/typing.js";
+import { charStates, lenientMask } from "../logic/typing.js";
 
 function CompletedBlank({ answer }) {
   return <span className="blank done">{answer}</span>;
@@ -13,8 +13,8 @@ function UpcomingBlank({ answer, revealed }) {
   );
 }
 
-function ActiveBlank({ answer, typed, revealed, errorPing, reduced }) {
-  const states = charStates(typed, answer);
+function ActiveBlank({ answer, typed, revealed, errorPing, reduced, mask }) {
+  const states = charStates(typed, answer, mask);
   const nodes = [];
   for (let i = 0; i <= answer.length; i++) {
     if (i === typed.length) {
@@ -131,6 +131,11 @@ export default function CodePanel({ game }) {
               revealed={revealed || peekHeld}
               errorPing={live.errorPing}
               reduced={reduced}
+              mask={
+                content === "blanks" || content === "full"
+                  ? lenientMask(answer)
+                  : null
+              }
             />
           );
         })}

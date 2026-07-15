@@ -2,6 +2,7 @@ import { AnimatePresence } from "motion/react";
 import useGame from "./hooks/useGame.js";
 import Menu from "./components/Menu.jsx";
 import RaceScreen from "./components/RaceScreen.jsx";
+import BattleScreen from "./components/BattleScreen.jsx";
 import Countdown from "./components/Countdown.jsx";
 import Finished from "./components/Finished.jsx";
 import PauseOverlay from "./components/PauseOverlay.jsx";
@@ -28,6 +29,8 @@ export default function App() {
             muted={game.muted}
             onToggleMute={game.toggleMute}
           />
+        ) : game.mode === "battle" ? (
+          <BattleScreen key="battle" game={game} />
         ) : (
           <RaceScreen key="race" game={game} />
         )}
