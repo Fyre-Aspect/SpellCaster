@@ -5,6 +5,12 @@ export const MODES = {
     desc: "Beat the bot to the finish line",
     startLabel: "Start Race",
   },
+  battle: {
+    id: "battle",
+    label: "Spell Battle",
+    desc: "Duel a rival wizard — type spells to cast",
+    startLabel: "Start Duel",
+  },
   endless: {
     id: "endless",
     label: "Endless Solo",

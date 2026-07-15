@@ -8,7 +8,19 @@ import {
 } from "react";
 import { totalAnswerChars } from "../data/snippets.js";
 import { challengeForRound, CONTENT_TYPES } from "../data/challenges.js";
-import { checkAnswer, correctCharCount } from "../logic/typing.js";
+import {
+  checkAnswer,
+  correctCharCount,
+  lenientMask,
+} from "../logic/typing.js";
+import {
+  SPELL_ORDER,
+  applyCast,
+  createBattle,
+  incantationFor,
+  tickBattle,
+} from "../logic/battle.js";
+import { refreshAiPool } from "../data/aiPool.js";
 import {
   BOT_DIFFICULTIES,
   computeAccuracy,
@@ -56,9 +68,22 @@ const CLOSER_TAIL_RE = /^[)\]};,\s]*$/;
 const HAS_CLOSER_RE = /[)\]}]/;
 
 function bestKeyFor(mode, difficulty, content) {
-  return mode === "race"
-    ? `spellcaster.best.race.${difficulty}.${content}.v1`
-    : `spellcaster.best.${mode}.${content}.v1`;
+  if (mode === "race") {
+    return `spellcaster.best.race.${difficulty}.${content}.v1`;
+  }
+  if (mode === "battle") {
+    return `spellcaster.best.battle.${difficulty}.v1`;
+  }
+  return `spellcaster.best.${mode}.${content}.v1`;
+}
+
+// String-literal contents are lenient in code content; sentences and
+// battle incantations are typed exactly
+function maskFor(d, expected) {
+  if (!expected || d.content === "sentences" || d.mode === "battle") {
+    return null;
+  }
+  return lenientMask(expected);
 }
 
 function loadJson(key) {
@@ -138,6 +163,7 @@ function emptyLive() {
     combo: null,
     errorPing: 0,
     peekedCurrent: false,
+    battle: null,
   };
 }
 
@@ -177,7 +203,8 @@ export default function useGame() {
     const d = dataRef.current;
     if (!d) return;
     const expected = d.answers[d.blankIndex] ?? "";
-    const snippetCorrect = d.completedChars + correctCharCount(d.typed, expected);
+    const snippetCorrect =
+      d.completedChars + correctCharCount(d.typed, expected, maskFor(d, expected));
     const runCorrect = d.runChars + snippetCorrect;
     let playerProgress;
     if (d.mode === "race") {
@@ -203,6 +230,33 @@ export default function useGame() {
       combo: d.combo,
       errorPing: d.errorPing,
       peekedCurrent: d.peekedBlanks.has(d.blankIndex),
+      battle: d.battle
+        ? {
+            playerHp: Math.max(0, Math.ceil(d.battle.playerHp)),
+            playerMax: d.battle.playerMax,
+            playerShield: Math.round(d.battle.playerShield),
+            playerPoisonLeft: d.battle.playerPoison
+              ? Math.ceil(d.battle.playerPoison.left)
+              : 0,
+            enemyHp: Math.max(0, Math.ceil(d.battle.enemyHp)),
+            enemyMax: d.battle.enemyMax,
+            enemyPoisonLeft: d.battle.enemyPoison
+              ? Math.ceil(d.battle.enemyPoison.left)
+              : 0,
+            enemyCast: d.battle.enemy.casting
+              ? {
+                  spellId: d.battle.enemy.casting.spellId,
+                  progress:
+                    1 -
+                    d.battle.enemy.casting.left / d.battle.enemy.casting.total,
+                }
+              : null,
+            selectedSpell: d.selectedSpell,
+            incantation: d.answers[0] ?? null,
+            castSeq: d.castSeq,
+            lastCast: d.lastCast,
+          }
+        : null,
     });
   }, []);
 
@@ -214,7 +268,8 @@ export default function useGame() {
       d.winner = winner;
       const expected = d.answers[d.blankIndex] ?? "";
       const typedCorrect =
-        d.completedChars + correctCharCount(d.typed, expected);
+        d.completedChars +
+        correctCharCount(d.typed, expected, maskFor(d, expected));
       const stats = {
         mode: "race",
         difficulty: d.difficulty,
@@ -250,13 +305,15 @@ export default function useGame() {
 
   const finishRun = useCallback(() => {
     const d = dataRef.current;
-    if (!d || d.finished || d.mode === "race") return;
+    if (!d || d.finished || d.mode === "race" || d.mode === "battle") return;
     d.finished = true;
     d.winner = null;
     if (d.timeLimit != null && d.elapsed > d.timeLimit) d.elapsed = d.timeLimit;
     const expected = d.answers[d.blankIndex] ?? "";
     const runCorrect =
-      d.runChars + d.completedChars + correctCharCount(d.typed, expected);
+      d.runChars +
+      d.completedChars +
+      correctCharCount(d.typed, expected, maskFor(d, expected));
     const score = Math.max(0, runCorrect - d.penaltyChars);
     const stats = {
       mode: d.mode,
@@ -291,6 +348,49 @@ export default function useGame() {
     syncLive();
     dispatch({ type: "FINISH", stats });
   }, [syncLive]);
+
+  const finishBattle = useCallback(
+    (winner) => {
+      const d = dataRef.current;
+      if (!d || d.finished) return;
+      d.finished = true;
+      d.winner = winner;
+      const stats = {
+        mode: "battle",
+        difficulty: d.difficulty,
+        winner,
+        timeSeconds: d.elapsed,
+        wpm: computeWpm(d.completedChars, d.elapsed),
+        accuracy: computeAccuracy(d.correctKeystrokes, d.keystrokes),
+        casts: d.casts,
+        perfectCasts: d.perfectCasts,
+        damageDealt: d.damageDealt,
+        hpLeft: Math.max(0, Math.ceil(d.battle.playerHp)),
+        round: d.round,
+        snippetId: "duel",
+        newBest: false,
+        misses: collectMisses(d),
+        blanksTotal: d.blankLog.length,
+      };
+      recordRunFrom(d, stats);
+      setHistoryBump((b) => b + 1);
+      if (winner === "player") {
+        const key = bestKeyFor("battle", d.difficulty, d.content);
+        const prev = loadJson(key);
+        if (!prev || stats.wpm > prev.wpm) {
+          saveJson(key, { wpm: stats.wpm, timeSeconds: stats.timeSeconds });
+          setBestBump((b) => b + 1);
+          stats.newBest = true;
+        }
+        winFanfare();
+      } else {
+        loseSlide();
+      }
+      syncLive();
+      dispatch({ type: "FINISH", stats });
+    },
+    [syncLive]
+  );
 
   const initRace = useCallback(
     (round, mode, difficultyId, contentId) => {
@@ -328,7 +428,22 @@ export default function useGame() {
         timeLimit: MODES[mode].timeLimit ?? null,
         finished: false,
         winner: null,
+        battle: null,
       };
+      if (mode === "battle") {
+        const d = dataRef.current;
+        d.battle = createBattle(difficultyId);
+        d.selectedSpell = null;
+        d.answers = [];
+        d.castSeq = 0;
+        d.castStart = 0;
+        d.castKeystrokes = 0;
+        d.castCorrect = 0;
+        d.casts = 0;
+        d.perfectCasts = 0;
+        d.damageDealt = 0;
+        d.lastCast = null;
+      }
       setPeekHeld(false);
       syncLive();
     },
@@ -360,7 +475,7 @@ export default function useGame() {
     }
   }, [syncLive]);
 
-  // Returns true when the race just finished (caller should stop)
+  // Returns true when the run just finished (caller should stop)
   const completeBlank = useCallback(
     (d, expected) => {
       d.blankLog.push({
@@ -370,10 +485,37 @@ export default function useGame() {
       });
       d.currentBlankWrong = 0;
       d.completedChars += expected.length;
-      d.blankIndex += 1;
       d.typed = "";
       d.autoClosedChar = null;
       d.autoClosedAt = -1;
+      if (d.mode === "battle") {
+        // The finished incantation becomes a cast: power scales with how
+        // accurately and quickly it was chanted
+        const seconds = Math.max(0.3, d.elapsed - d.castStart);
+        const accuracy = computeAccuracy(d.castCorrect, d.castKeystrokes);
+        const result = applyCast(d.battle, d.selectedSpell, {
+          accuracy,
+          seconds,
+          chars: expected.length,
+        });
+        d.casts += 1;
+        if (result.crit) d.perfectCasts += 1;
+        if (result.type === "attack" || result.type === "poison") {
+          d.damageDealt += result.amount;
+        }
+        d.castSeq += 1;
+        d.lastCast = { seq: d.castSeq, spellId: d.selectedSpell, ...result };
+        d.selectedSpell = null;
+        d.answers = [];
+        d.blankIndex = 0;
+        goBeep();
+        if (d.battle.over) {
+          finishBattle(d.battle.winner);
+          return true;
+        }
+        return false;
+      }
+      d.blankIndex += 1;
       if (d.blankIndex >= d.answers.length) {
         if (d.mode === "race") {
           finishRace("player");
@@ -383,7 +525,7 @@ export default function useGame() {
       }
       return false;
     },
-    [advanceSnippet, finishRace]
+    [advanceSnippet, finishRace, finishBattle]
   );
 
   const typeChar = useCallback(

@@ -1,5 +1,6 @@
 import { BLANK_MARKER, SNIPPETS, parseTemplate } from "./snippets.js";
 import { SENTENCES } from "./sentences.js";
+import { aiSnippets, aiSentences } from "./aiPool.js";
 
 export const CONTENT_TYPES = {
   blanks: { id: "blanks", label: "Fill the blanks" },
@@ -33,7 +34,9 @@ function lineSegments(code) {
 
 export function challengeForRound(round, contentType) {
   if (contentType === "sentences") {
-    const sentence = SENTENCES[(round - 1) % SENTENCES.length];
+    // AI extras append to the bank so later rounds see fresh material
+    const bank = SENTENCES.concat(aiSentences());
+    const sentence = bank[(round - 1) % bank.length];
     return {
       id: sentence.id,
       difficulty: sentence.difficulty,
@@ -41,7 +44,8 @@ export function challengeForRound(round, contentType) {
       answers: [sentence.text],
     };
   }
-  const snippet = SNIPPETS[(round - 1) % SNIPPETS.length];
+  const snippetBank = SNIPPETS.concat(aiSnippets());
+  const snippet = snippetBank[(round - 1) % snippetBank.length];
   if (contentType === "full") {
     const { segments, answers } = lineSegments(fullCodeOf(snippet));
     return {
