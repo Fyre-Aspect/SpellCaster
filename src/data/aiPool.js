@@ -4,7 +4,7 @@
 
 const STORE_KEY = "spellcaster.aipool.v1";
 const REFRESH_MS = 12 * 60 * 60 * 1000;
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const API_KEY = import.meta.env?.VITE_GEMINI_API_KEY;
 const MODEL = "gemini-2.5-flash";
 
 const EMPTY = {

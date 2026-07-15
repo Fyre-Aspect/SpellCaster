@@ -15,6 +15,9 @@ function bestText(mode, best) {
   if (mode === "race") {
     return `Best win: ${Math.round(best.wpm)} WPM in ${best.timeSeconds.toFixed(1)}s`;
   }
+  if (mode === "battle") {
+    return `Best duel win: ${Math.round(best.wpm)} WPM in ${best.timeSeconds.toFixed(1)}s`;
+  }
   if (mode === "endless") {
     return `Best run: ${Math.round(best.wpm)} WPM · ${best.snippets} snippets`;
   }
@@ -60,7 +63,7 @@ export default function Menu({
           </button>
         ))}
       </div>
-      {selectedMode === "race" && (
+      {(selectedMode === "race" || selectedMode === "battle") && (
         <div className="diff-row">
           {DIFFICULTY_ORDER.map((id) => {
             const profile = BOT_DIFFICULTIES[id];
@@ -77,18 +80,20 @@ export default function Menu({
           })}
         </div>
       )}
-      <div className="content-row">
-        {Object.values(CONTENT_TYPES).map((type) => (
-          <button
-            key={type.id}
-            type="button"
-            className={`content-btn ${content === type.id ? "selected" : ""}`}
-            onClick={() => onSelectContent(type.id)}
-          >
-            {type.label}
-          </button>
-        ))}
-      </div>
+      {selectedMode !== "battle" && (
+        <div className="content-row">
+          {Object.values(CONTENT_TYPES).map((type) => (
+            <button
+              key={type.id}
+              type="button"
+              className={`content-btn ${content === type.id ? "selected" : ""}`}
+              onClick={() => onSelectContent(type.id)}
+            >
+              {type.label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="best-chip">{bestText(selectedMode, best)}</div>
       {summary && (
         <div className="stats-card">
@@ -112,7 +117,7 @@ export default function Menu({
         {MODES[selectedMode].startLabel}
       </motion.button>
       <div className="toggle-row">
-        {content === "blanks" && (
+        {content === "blanks" && selectedMode !== "battle" && (
           <button type="button" className="toggle-btn" onClick={onToggleAnswers}>
             Answers shown: {showAnswers ? "ON" : "OFF"}
           </button>
@@ -122,24 +127,45 @@ export default function Menu({
         </button>
       </div>
       <ul className="hints">
-        {content !== "blanks" ? (
-          <li>{CONTENT_HINTS[content]}</li>
-        ) : showAnswers ? (
-          <li>The missing code is shown faintly in the blanks — type over it!</li>
+        {selectedMode === "battle" ? (
+          <>
+            <li>
+              Pick spells with 1&ndash;5 &mdash; big spells need long, hard
+              chants; quick spells are short and easy
+            </li>
+            <li>
+              Fast, flawless chanting hits harder &middot; perfect + quick =
+              CRIT
+            </li>
+            <li>Press Enter to start &middot; Esc pauses</li>
+          </>
         ) : (
-          <li>Answers are hidden — hold Ctrl to peek (costs 4 chars of progress)</li>
-        )}
-        <li>
-          Backspace fixes mistakes &middot; brackets auto-close like your
-          editor &middot; Enter finishes closing brackets
-        </li>
-        {selectedMode === "race" ? (
-          <li>Press Enter to start &middot; Esc pauses</li>
-        ) : (
-          <li>
-            Press Enter to start &middot; Esc pauses &middot; End &amp; Score
-            wraps up your run
-          </li>
+          <>
+            {content !== "blanks" ? (
+              <li>{CONTENT_HINTS[content]}</li>
+            ) : showAnswers ? (
+              <li>
+                The missing code is shown faintly in the blanks — type over it!
+              </li>
+            ) : (
+              <li>
+                Answers are hidden — hold Ctrl to peek (costs 4 chars of
+                progress)
+              </li>
+            )}
+            <li>
+              Backspace fixes mistakes &middot; brackets auto-close like your
+              editor &middot; Enter finishes closing brackets
+            </li>
+            {selectedMode === "race" ? (
+              <li>Press Enter to start &middot; Esc pauses</li>
+            ) : (
+              <li>
+                Press Enter to start &middot; Esc pauses &middot; End &amp;
+                Score wraps up your run
+              </li>
+            )}
+          </>
         )}
       </ul>
     </motion.section>

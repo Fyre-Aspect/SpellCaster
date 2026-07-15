@@ -3,34 +3,53 @@ import { motion, useReducedMotion } from "motion/react";
 export default function Finished({ result, summary, onRaceAgain, onMenu }) {
   const reduced = useReducedMotion();
   const isRace = result.mode === "race";
-  const won = isRace && result.winner === "player";
-  const title = isRace
+  const isBattle = result.mode === "battle";
+  const won =
+    (isRace || isBattle) && result.winner === "player";
+  const lost = (isRace || isBattle) && !won;
+  const title = isBattle
     ? won
-      ? "You win!"
-      : "The bot wins"
-    : result.mode === "trial"
-      ? "Time's up!"
-      : "Run complete!";
-  const rows = isRace
+      ? "Victory!"
+      : "You are defeated!"
+    : isRace
+      ? won
+        ? "You win!"
+        : "The bot wins"
+      : result.mode === "trial"
+        ? "Time's up!"
+        : "Run complete!";
+  const rows = isBattle
     ? [
+        ["Damage", result.damageDealt],
+        [
+          "Casts",
+          result.perfectCasts > 0
+            ? `${result.casts} (${result.perfectCasts} crit)`
+            : result.casts,
+        ],
         ["Time", `${result.timeSeconds.toFixed(1)}s`],
-        ["WPM", Math.round(result.wpm)],
         ["Accuracy", `${Math.round(result.accuracy)}%`],
-        ["Round", result.round],
       ]
-    : result.mode === "trial"
+    : isRace
       ? [
-          ["Chars", result.chars],
-          ["Snippets", result.snippets],
-          ["WPM", Math.round(result.wpm)],
-          ["Accuracy", `${Math.round(result.accuracy)}%`],
-        ]
-      : [
-          ["Snippets", result.snippets],
           ["Time", `${result.timeSeconds.toFixed(1)}s`],
           ["WPM", Math.round(result.wpm)],
           ["Accuracy", `${Math.round(result.accuracy)}%`],
-        ];
+          ["Round", result.round],
+        ]
+      : result.mode === "trial"
+        ? [
+            ["Chars", result.chars],
+            ["Snippets", result.snippets],
+            ["WPM", Math.round(result.wpm)],
+            ["Accuracy", `${Math.round(result.accuracy)}%`],
+          ]
+        : [
+            ["Snippets", result.snippets],
+            ["Time", `${result.timeSeconds.toFixed(1)}s`],
+            ["WPM", Math.round(result.wpm)],
+            ["Accuracy", `${Math.round(result.accuracy)}%`],
+          ];
   return (
     <motion.div
       className="overlay finished-overlay"
@@ -50,9 +69,7 @@ export default function Finished({ result, summary, onRaceAgain, onMenu }) {
             : { type: "spring", stiffness: 260, damping: 22 }
         }
       >
-        <h2 className={`result-title ${isRace && !won ? "lose" : "win"}`}>
-          {title}
-        </h2>
+        <h2 className={`result-title ${lost ? "lose" : "win"}`}>{title}</h2>
         {result.newBest && (
           <motion.div
             className="new-best"
@@ -60,7 +77,11 @@ export default function Finished({ result, summary, onRaceAgain, onMenu }) {
             animate={reduced ? { opacity: 1 } : { opacity: 1, scale: 1 }}
             transition={{ delay: 0.15 }}
           >
-            {result.mode === "trial" ? "New best score!" : "New best WPM!"}
+            {result.mode === "trial"
+              ? "New best score!"
+              : result.mode === "battle"
+                ? "New best duel!"
+                : "New best WPM!"}
           </motion.div>
         )}
         <dl className="result-stats">
@@ -103,7 +124,7 @@ export default function Finished({ result, summary, onRaceAgain, onMenu }) {
             whileHover={reduced ? undefined : { scale: 1.05 }}
             whileTap={reduced ? undefined : { scale: 0.95 }}
           >
-            {isRace ? "Race Again" : "Go Again"}
+            {isBattle ? "Duel Again" : isRace ? "Race Again" : "Go Again"}
           </motion.button>
           <button type="button" className="btn btn-secondary" onClick={onMenu}>
             Menu
