@@ -1,17 +1,26 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { SPELLS, SPELL_ORDER } from "../logic/battle.js";
+import ArenaScene from "../scene/ArenaScene.jsx";
 import CodePanel from "./CodePanel.jsx";
 
 const TIER_TAGS = {
-  short: "⚡ short & easy",
-  medium: "✍ medium chant",
-  long: "\u{1F4DC} long & hard",
+  short: "Short · easy",
+  medium: "Medium",
+  long: "Long · hard",
 };
 
-function HpBar({ label, hp, max, tone, shield = 0, poisonLeft = 0 }) {
+function castPopText(cast) {
+  const spell = SPELLS[cast.spellId];
+  if (cast.type === "heal") return `${spell.icon} +${cast.amount} HP`;
+  if (cast.type === "shield") return `${spell.icon} +${cast.amount} shield`;
+  if (cast.type === "poison") return `${spell.icon} poisoned!`;
+  return `${spell.icon} -${cast.amount}${cast.crit ? " CRIT!" : ""}`;
+}
+
+function HpCard({ label, hp, max, tone, shield = 0, poisonLeft = 0, active }) {
   const pct = Math.max(0, Math.min(100, (hp / max) * 100));
   return (
-    <div className={`hp-block ${tone}`}>
+    <div className={`hp-card ${tone} ${active ? "active-turn" : ""}`}>
       <div className="hp-head">
         <span className="hp-name">{label}</span>
         <span className="hp-value">
@@ -27,19 +36,47 @@ function HpBar({ label, hp, max, tone, shield = 0, poisonLeft = 0 }) {
   );
 }
 
-function castPopText(lastCast) {
-  const spell = SPELLS[lastCast.spellId];
-  if (lastCast.type === "heal") return `${spell.icon} +${lastCast.amount} HP`;
-  if (lastCast.type === "shield") return `${spell.icon} ${lastCast.amount} ward`;
-  if (lastCast.type === "poison") return `${spell.icon} poisoned! ~${lastCast.amount}`;
-  return `${spell.icon} -${lastCast.amount}${lastCast.crit ? " CRIT!" : ""}`;
+function CastPop({ cast, side, reduced }) {
+  return (
+    <AnimatePresence>
+      {cast && (
+        <motion.div
+          key={`${cast.side}-${cast.seq}`}
+          className={`cast-pop ${side} ${cast.crit ? "crit" : ""}`}
+          initial={reduced ? { opacity: 0 } : { opacity: 0, y: 12, scale: 0.7 }}
+          animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+        >
+          {castPopText(cast)}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 }
 
 export default function BattleScreen({ game }) {
   const reduced = useReducedMotion();
   const b = game.live.battle;
   if (!b) return null;
+  const pvp = b.pvp;
+  const labels = pvp
+    ? { player: "P1", enemy: "P2" }
+    : { player: "YOU", enemy: "RIVAL" };
+  const finished = game.screen === "finished";
+  const winner = game.result?.winner ?? "player";
   const enemySpell = b.enemyCast ? SPELLS[b.enemyCast.spellId] : null;
+  const turnLabel = b.turn === "player" ? "Player 1" : "Player 2";
+  // Pops appear over whoever the cast affected: attacks over the target,
+  // heals and shields over the caster
+  const selfCast = (c) => c && (c.type === "heal" || c.type === "shield");
+  const leftPop =
+    (b.lastEnemyCast && !selfCast(b.lastEnemyCast) ? b.lastEnemyCast : null) ??
+    (selfCast(b.lastCast) ? b.lastCast : null);
+  const rightPop =
+    (b.lastCast && !selfCast(b.lastCast) ? b.lastCast : null) ??
+    (selfCast(b.lastEnemyCast) ? b.lastEnemyCast : null);
+
   return (
     <motion.div
       className="race-screen battle-screen"
@@ -48,43 +85,67 @@ export default function BattleScreen({ game }) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.35, ease: "easeOut" }}
     >
-      <div className="battle-arena">
-        <HpBar
-          label="🧙 You"
-          hp={b.playerHp}
-          max={b.playerMax}
-          tone="player"
-          shield={b.playerShield}
-          poisonLeft={b.playerPoisonLeft}
+      <div className="track-wrap battle-stage">
+        <ArenaScene
+          pvp={pvp}
+          turn={b.turn}
+          playerCasting={
+            !!b.selectedSpell && (!pvp || b.turn === "player") && !finished
+          }
+          enemyCasting={
+            pvp
+              ? !!b.selectedSpell && b.turn === "enemy" && !finished
+              : !!b.enemyCast
+          }
+          playerCast={b.lastCast}
+          enemyCast={b.lastEnemyCast}
+          playerShield={b.playerShield}
+          enemyShield={b.enemyShield}
+          playerPoisoned={b.playerPoisonLeft > 0}
+          enemyPoisoned={b.enemyPoisonLeft > 0}
+          finished={finished}
+          winner={winner}
+          labels={labels}
+          reducedMotion={!!reduced}
         />
-        <div className="battle-vs">VS</div>
-        <HpBar
-          label="🧛 Rival"
-          hp={b.enemyHp}
-          max={b.enemyMax}
-          tone="bot"
-          poisonLeft={b.enemyPoisonLeft}
-        />
-        <AnimatePresence>
-          {b.lastCast && (
-            <motion.div
-              key={b.lastCast.seq}
-              className={`cast-pop ${b.lastCast.crit ? "crit" : ""}`}
-              initial={reduced ? { opacity: 0 } : { opacity: 0, y: 12, scale: 0.7 }}
-              animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-            >
-              {castPopText(b.lastCast)}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <div className="battle-overlay">
+          <div className="hp-side left">
+            <HpCard
+              label={pvp ? "🧙 Player 1" : "🧙 You"}
+              hp={b.playerHp}
+              max={b.playerMax}
+              tone="player"
+              shield={b.playerShield}
+              poisonLeft={b.playerPoisonLeft}
+              active={pvp && b.turn === "player" && !finished}
+            />
+            <CastPop cast={leftPop} side="left" reduced={reduced} />
+          </div>
+          <div className="hp-side right">
+            <HpCard
+              label={pvp ? "🧙 Player 2" : "🧛 Rival"}
+              hp={b.enemyHp}
+              max={b.enemyMax}
+              tone="bot"
+              shield={b.enemyShield}
+              poisonLeft={b.enemyPoisonLeft}
+              active={pvp && b.turn === "enemy" && !finished}
+            />
+            <CastPop cast={rightPop} side="right" reduced={reduced} />
+          </div>
+        </div>
       </div>
-      <div className="enemy-telegraph">
-        {enemySpell ? (
+      <div className="battle-status">
+        {pvp ? (
+          <span className={`turn-banner ${b.turn}`}>
+            {b.selectedSpell
+              ? `⚡ ${turnLabel} is casting…`
+              : `🎲 ${turnLabel}'s turn — pick a spell!`}
+          </span>
+        ) : enemySpell ? (
           <>
             <span>
-              🔮 Rival chants <strong>{enemySpell.name}</strong>…
+              ⚠️ Rival is casting <strong>{enemySpell.name}</strong>
             </span>
             <div className="bar telegraph-bar">
               <div
@@ -94,29 +155,38 @@ export default function BattleScreen({ game }) {
             </div>
           </>
         ) : (
-          <span className="telegraph-idle">The rival wizard gathers mana…</span>
+          <span className="telegraph-idle">Rival is thinking…</span>
         )}
       </div>
       {b.selectedSpell && b.incantation ? (
-        <CodePanel
-          game={{
-            challenge: {
-              segments: [{ type: "blank", index: 0 }],
-              answers: [b.incantation],
-            },
-            live: game.live,
-            peekHeld: false,
-            peekPenalty: 0,
-            showAnswers: true,
-            content: "battle",
-            round: `${b.selectedSpell}-${b.castSeq}`,
-          }}
-        />
+        <>
+          {b.synopsis && (
+            <div className="synopsis-chip">
+              <span className="synopsis-label">What it does:</span> {b.synopsis}
+            </div>
+          )}
+          <CodePanel
+            game={{
+              challenge: {
+                segments: [{ type: "blank", index: 0 }],
+                answers: [b.incantation],
+              },
+              live: game.live,
+              peekHeld: false,
+              peekPenalty: 0,
+              showAnswers: true,
+              content: b.style === "code" ? "full" : "battle",
+              round: `${b.selectedSpell}-${b.castSeq}`,
+            }}
+          />
+        </>
       ) : (
         <div className="pick-spell">
-          <p className="pick-spell-title">Choose your spell!</p>
+          <p className="pick-spell-title">
+            {pvp ? `${turnLabel}, choose your spell!` : "Choose your spell!"}
+          </p>
           <p className="pick-spell-hint">
-            Press 1–5 or click a card — fast, flawless chanting hits harder
+            Press 1–5 or click a card — type it fast and clean to hit harder
           </p>
         </div>
       )}
@@ -143,8 +213,8 @@ export default function BattleScreen({ game }) {
         })}
       </div>
       <footer className="race-footer">
-        <span>1–5 picks a spell · switching restarts the chant</span>
-        <span>Accuracy × speed = spell power</span>
+        <span>Longer spells are stronger but slower to type</span>
+        <span>Perfect + fast = CRIT</span>
         <span>Esc pauses</span>
       </footer>
     </motion.div>

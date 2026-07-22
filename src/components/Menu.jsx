@@ -1,5 +1,6 @@
 import { motion, useReducedMotion } from "motion/react";
 import { MODES } from "../logic/machine.js";
+import { BATTLE_STYLES } from "../logic/battle.js";
 import { BOT_DIFFICULTIES, DIFFICULTY_ORDER } from "../logic/race.js";
 import { CONTENT_TYPES } from "../data/challenges.js";
 import Sparkline from "./Sparkline.jsx";
@@ -11,6 +12,9 @@ const CONTENT_HINTS = {
 };
 
 function bestText(mode, best) {
+  if (mode === "pvp") {
+    return "Winner takes the bragging rights!";
+  }
   if (!best) return "No record yet — set one!";
   if (mode === "race") {
     return `Best win: speed ${Math.round(best.wpm)} in ${best.timeSeconds.toFixed(1)}s`;
@@ -37,10 +41,13 @@ export default function Menu({
   onStart,
   summary,
   aiCount,
+  battleStyle,
+  onSelectBattleStyle,
   muted,
   onToggleMute,
 }) {
   const reduced = useReducedMotion();
+  const isBattle = selectedMode === "battle" || selectedMode === "pvp";
   return (
     <motion.section
       className="menu"
@@ -81,7 +88,22 @@ export default function Menu({
           })}
         </div>
       )}
-      {selectedMode !== "battle" && (
+      {isBattle && (
+        <div className="content-row">
+          {Object.values(BATTLE_STYLES).map((style) => (
+            <button
+              key={style.id}
+              type="button"
+              className={`content-btn ${battleStyle === style.id ? "selected" : ""}`}
+              onClick={() => onSelectBattleStyle(style.id)}
+              title={style.desc}
+            >
+              {style.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {!isBattle && (
         <div className="content-row">
           {Object.values(CONTENT_TYPES).map((type) => (
             <button
@@ -123,7 +145,7 @@ export default function Menu({
         {MODES[selectedMode].startLabel}
       </motion.button>
       <div className="toggle-row">
-        {content === "blanks" && selectedMode !== "battle" && (
+        {content === "blanks" && !isBattle && (
           <button type="button" className="toggle-btn" onClick={onToggleAnswers}>
             Answers shown: {showAnswers ? "ON" : "OFF"}
           </button>
@@ -133,16 +155,19 @@ export default function Menu({
         </button>
       </div>
       <ul className="hints">
-        {selectedMode === "battle" ? (
+        {isBattle ? (
           <>
+            {selectedMode === "pvp" && (
+              <li>
+                Grab a friend! You take turns &mdash; pick a spell, type it,
+                then pass the keyboard
+              </li>
+            )}
             <li>
-              Pick spells with 1&ndash;5 &mdash; big spells need long, hard
-              chants; quick spells are short and easy
+              Pick spells with 1&ndash;5 &mdash; stronger spells take longer to
+              type
             </li>
-            <li>
-              Fast, flawless chanting hits harder &middot; perfect + quick =
-              CRIT
-            </li>
+            <li>Type fast with no mistakes to hit harder &middot; perfect + quick = CRIT</li>
             <li>Press Enter to start &middot; Esc pauses</li>
           </>
         ) : (

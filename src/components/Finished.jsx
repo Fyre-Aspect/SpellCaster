@@ -3,21 +3,26 @@ import { motion, useReducedMotion } from "motion/react";
 export default function Finished({ result, summary, onRaceAgain, onMenu }) {
   const reduced = useReducedMotion();
   const isRace = result.mode === "race";
-  const isBattle = result.mode === "battle";
+  const isPvp = result.mode === "pvp";
+  const isBattle = result.mode === "battle" || isPvp;
   const won =
-    (isRace || isBattle) && result.winner === "player";
+    isPvp || ((isRace || isBattle) && result.winner === "player");
   const lost = (isRace || isBattle) && !won;
-  const title = isBattle
-    ? won
-      ? "Victory!"
-      : "You are defeated!"
-    : isRace
+  const title = isPvp
+    ? result.winner === "player"
+      ? "Player 1 wins!"
+      : "Player 2 wins!"
+    : isBattle
       ? won
-        ? "You win!"
-        : "The bot wins"
-      : result.mode === "trial"
-        ? "Time's up!"
-        : "Run complete!";
+        ? "Victory!"
+        : "You are defeated!"
+      : isRace
+        ? won
+          ? "You win!"
+          : "The bot wins"
+        : result.mode === "trial"
+          ? "Time's up!"
+          : "Run complete!";
   const rows = isBattle
     ? [
         ["Damage", result.damageDealt],
@@ -126,7 +131,7 @@ export default function Finished({ result, summary, onRaceAgain, onMenu }) {
             whileHover={reduced ? undefined : { scale: 1.05 }}
             whileTap={reduced ? undefined : { scale: 0.95 }}
           >
-            {isBattle ? "Duel Again" : isRace ? "Race Again" : "Go Again"}
+            {isPvp ? "Rematch" : isBattle ? "Duel Again" : isRace ? "Race Again" : "Go Again"}
           </motion.button>
           <button type="button" className="btn btn-secondary" onClick={onMenu}>
             Menu

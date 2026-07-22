@@ -1022,19 +1022,41 @@ button {
   color: var(--ink-dim);
 }
 
-.battle-arena {
+.battle-stage {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 18px 24px 10px;
 }
 
-.hp-block {
-  flex: 1;
+.battle-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 14px;
+  pointer-events: none;
+}
+
+.hp-side {
+  position: relative;
+  width: min(300px, 42%);
+}
+
+.hp-card {
   display: flex;
   flex-direction: column;
   gap: 5px;
+  background: var(--panel);
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  padding: 8px 12px;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.hp-card.active-turn {
+  border-color: var(--yellow);
+  box-shadow:
+    3px 3px 0 var(--ink),
+    0 0 0 3px rgba(255, 210, 63, 0.5);
 }
 
 .hp-head {
@@ -1046,11 +1068,11 @@ button {
   font-size: 15px;
 }
 
-.hp-block.player .hp-name {
+.hp-card.player .hp-name {
   color: var(--player);
 }
 
-.hp-block.bot .hp-name {
+.hp-card.bot .hp-name {
   color: var(--bot);
 }
 
@@ -1090,25 +1112,9 @@ button {
   border-radius: 9px;
 }
 
-.battle-vs {
-  font-family: var(--font-comic);
-  font-size: 22px;
-  font-weight: 900;
-  letter-spacing: 1px;
-  color: var(--ink);
-  background: var(--yellow);
-  border: 3px solid var(--ink);
-  border-radius: 999px;
-  padding: 8px 12px;
-  box-shadow: 3px 3px 0 var(--ink);
-  transform: rotate(-4deg);
-  flex-shrink: 0;
-}
-
 .cast-pop {
   position: absolute;
-  top: 4px;
-  right: 16%;
+  top: calc(100% + 8px);
   font-family: var(--font-comic);
   font-size: 16px;
   font-weight: 900;
@@ -1120,6 +1126,15 @@ button {
   box-shadow: 3px 3px 0 var(--ink);
   z-index: 5;
   pointer-events: none;
+  white-space: nowrap;
+}
+
+.cast-pop.left {
+  left: 8px;
+}
+
+.cast-pop.right {
+  right: 8px;
 }
 
 .cast-pop.crit {
@@ -1128,18 +1143,56 @@ button {
   transform: rotate(-3deg);
 }
 
-.enemy-telegraph {
+.battle-status {
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 12px;
-  padding: 6px 22px 12px;
+  padding: 8px 22px;
   border-bottom: 3px solid var(--ink);
   font-family: var(--font-comic);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--ink-dim);
-  min-height: 34px;
+  min-height: 38px;
+  background: var(--panel);
+}
+
+.turn-banner {
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.turn-banner.player {
+  color: var(--player);
+}
+
+.turn-banner.enemy {
+  color: var(--bot);
+}
+
+.synopsis-chip {
+  align-self: center;
+  margin-top: 10px;
+  font-family: var(--font-comic);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--yellow);
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  padding: 5px 16px;
+  box-shadow: 3px 3px 0 var(--ink);
+  max-width: min(92%, 640px);
+  text-align: center;
+}
+
+.synopsis-label {
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--ink-dim);
+  margin-right: 4px;
 }
 
 .telegraph-bar {
@@ -1372,19 +1425,31 @@ button {
     gap: 16px 24px;
   }
 
-  .battle-arena {
-    flex-wrap: wrap;
-    gap: 10px;
-    padding: 12px 14px 8px;
+  .battle-overlay {
+    padding: 8px;
   }
 
-  .battle-vs {
-    order: 3;
-    display: none;
+  .hp-side {
+    width: 48%;
   }
 
-  .hp-block {
-    flex: 1 1 100%;
+  .hp-card {
+    padding: 6px 8px;
+    border-width: 2px;
+  }
+
+  .hp-card .hp-head {
+    font-size: 12.5px;
+  }
+
+  .cast-pop {
+    font-size: 13px;
+    padding: 4px 10px;
+  }
+
+  .synopsis-chip {
+    font-size: 12px;
+    max-width: 94%;
   }
 
   .spell-card {

@@ -14,9 +14,11 @@ import {
   lenientMask,
 } from "../logic/typing.js";
 import {
+  BATTLE_STYLES,
   SPELL_ORDER,
   applyCast,
   createBattle,
+  createPvpBattle,
   incantationFor,
   tickBattle,
 } from "../logic/battle.js";
@@ -48,6 +50,8 @@ const ANSWERS_KEY = "spellcaster.show-answers.v1";
 const MODE_KEY = "spellcaster.mode.v1";
 const DIFFICULTY_KEY = "spellcaster.difficulty.v1";
 const CONTENT_KEY = "spellcaster.content.v1";
+const BATTLE_STYLE_KEY = "spellcaster.battlestyle.v1";
+const POP_VISIBLE_MS = 1400;
 const PEEK_PENALTY_CHARS = 4;
 const COMBO_STEP = 10;
 const COMBO_VISIBLE_MS = 1000;
@@ -67,6 +71,8 @@ const AUTO_PAIRS = {
 const CLOSER_TAIL_RE = /^[)\]};,\s]*$/;
 const HAS_CLOSER_RE = /[)\]}]/;
 
+const isBattleMode = (mode) => mode === "battle" || mode === "pvp";
+
 function bestKeyFor(mode, difficulty, content) {
   if (mode === "race") {
     return `spellcaster.best.race.${difficulty}.${content}.v1`;
@@ -78,10 +84,11 @@ function bestKeyFor(mode, difficulty, content) {
 }
 
 // String-literal contents are lenient in code content; sentences and
-// battle incantations are typed exactly
+// word-spell incantations are typed exactly
 function maskFor(d, expected) {
-  if (!expected || d.content === "sentences" || d.mode === "battle") {
-    return null;
+  if (!expected || d.content === "sentences") return null;
+  if (isBattleMode(d.mode)) {
+    return d.battleStyle === "code" ? lenientMask(expected) : null;
   }
   return lenientMask(expected);
 }
@@ -182,6 +189,9 @@ export default function useGame() {
   const [content, setContent] = useState(() =>
     loadChoice(CONTENT_KEY, "blanks", Object.keys(CONTENT_TYPES))
   );
+  const [battleStyle, setBattleStyle] = useState(() =>
+    loadChoice(BATTLE_STYLE_KEY, "words", Object.keys(BATTLE_STYLES))
+  );
   const [bestBump, setBestBump] = useState(0);
   const [historyBump, setHistoryBump] = useState(0);
   const [aiBump, setAiBump] = useState(0);
@@ -189,6 +199,7 @@ export default function useGame() {
   const dataRef = useRef(null);
   const comboTimerRef = useRef(null);
   const castPopTimerRef = useRef(null);
+  const enemyPopTimerRef = useRef(null);
 
   const history = useMemo(() => loadHistory(), [historyBump]);
   const summary = useMemo(() => summarizeHistory(history), [history]);
@@ -234,6 +245,8 @@ export default function useGame() {
       peekedCurrent: d.peekedBlanks.has(d.blankIndex),
       battle: d.battle
         ? {
+            pvp: d.battle.pvp,
+            turn: d.battle.pvp ? d.battle.turn : null,
             playerHp: Math.max(0, Math.ceil(d.battle.playerHp)),
             playerMax: d.battle.playerMax,
             playerShield: Math.round(d.battle.playerShield),
@@ -242,6 +255,7 @@ export default function useGame() {
               : 0,
             enemyHp: Math.max(0, Math.ceil(d.battle.enemyHp)),
             enemyMax: d.battle.enemyMax,
+            enemyShield: Math.round(d.battle.enemyShield),
             enemyPoisonLeft: d.battle.enemyPoison
               ? Math.ceil(d.battle.enemyPoison.left)
               : 0,
@@ -255,8 +269,11 @@ export default function useGame() {
               : null,
             selectedSpell: d.selectedSpell,
             incantation: d.answers[0] ?? null,
+            synopsis: d.castSynopsis ?? null,
+            style: d.battleStyle,
             castSeq: d.castSeq,
             lastCast: d.lastCast,
+            lastEnemyCast: d.lastEnemyCast,
           }
         : null,
     });
@@ -307,7 +324,7 @@ export default function useGame() {
 
   const finishRun = useCallback(() => {
     const d = dataRef.current;
-    if (!d || d.finished || d.mode === "race" || d.mode === "battle") return;
+    if (!d || d.finished || d.mode === "race" || isBattleMode(d.mode)) return;
     d.finished = true;
     d.winner = null;
     if (d.timeLimit != null && d.elapsed > d.timeLimit) d.elapsed = d.timeLimit;
@@ -358,7 +375,7 @@ export default function useGame() {
       d.finished = true;
       d.winner = winner;
       const stats = {
-        mode: "battle",
+        mode: d.mode,
         difficulty: d.difficulty,
         winner,
         timeSeconds: d.elapsed,
@@ -376,7 +393,10 @@ export default function useGame() {
       };
       recordRunFrom(d, stats);
       setHistoryBump((b) => b + 1);
-      if (winner === "player") {
+      if (d.mode === "pvp") {
+        // Someone in the room won either way
+        winFanfare();
+      } else if (winner === "player") {
         const key = bestKeyFor("battle", d.difficulty, d.content);
         const prev = loadJson(key);
         if (!prev || stats.wpm > prev.wpm) {
@@ -434,11 +454,14 @@ export default function useGame() {
         winner: null,
         battle: null,
       };
-      if (mode === "battle") {
+      if (isBattleMode(mode)) {
         const d = dataRef.current;
-        d.battle = createBattle(difficultyId);
+        d.battle =
+          mode === "pvp" ? createPvpBattle() : createBattle(difficultyId);
+        d.battleStyle = battleStyle;
         d.selectedSpell = null;
         d.answers = [];
+        d.castSynopsis = null;
         d.castSeq = 0;
         d.castStart = 0;
         d.castKeystrokes = 0;
@@ -447,11 +470,13 @@ export default function useGame() {
         d.perfectCasts = 0;
         d.damageDealt = 0;
         d.lastCast = null;
+        d.lastEnemyCast = null;
+        d.enemySeq = 0;
       }
       setPeekHeld(false);
       syncLive();
     },
-    [syncLive]
+    [syncLive, battleStyle]
   );
 
   const advanceSnippet = useCallback((d) => {
@@ -492,35 +517,46 @@ export default function useGame() {
       d.typed = "";
       d.autoClosedChar = null;
       d.autoClosedAt = -1;
-      if (d.mode === "battle") {
+      if (isBattleMode(d.mode)) {
         // The finished incantation becomes a cast: power scales with how
-        // accurately and quickly it was chanted
+        // accurately and quickly it was typed. In PvP the current turn's
+        // player is the caster.
+        const side = d.mode === "pvp" ? d.battle.turn : "player";
         const seconds = Math.max(0.3, d.elapsed - d.castStart);
         const accuracy = computeAccuracy(d.castCorrect, d.castKeystrokes);
-        const result = applyCast(d.battle, d.selectedSpell, {
-          accuracy,
-          seconds,
-          chars: expected.length,
-        });
+        const result = applyCast(
+          d.battle,
+          d.selectedSpell,
+          {
+            accuracy,
+            seconds,
+            chars: expected.length,
+          },
+          side
+        );
         d.casts += 1;
         if (result.crit) d.perfectCasts += 1;
         if (result.type === "attack" || result.type === "poison") {
           d.damageDealt += result.amount;
         }
         d.castSeq += 1;
-        d.lastCast = { seq: d.castSeq, spellId: d.selectedSpell, ...result };
+        const cast = { seq: d.castSeq, spellId: d.selectedSpell, side, ...result };
+        const timerRef = side === "enemy" ? enemyPopTimerRef : castPopTimerRef;
+        const slot = side === "enemy" ? "lastEnemyCast" : "lastCast";
+        d[slot] = cast;
         d.selectedSpell = null;
         d.answers = [];
+        d.castSynopsis = null;
         d.blankIndex = 0;
         const seq = d.castSeq;
-        if (castPopTimerRef.current) clearTimeout(castPopTimerRef.current);
-        castPopTimerRef.current = setTimeout(() => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => {
           const cur = dataRef.current;
-          if (cur && cur.lastCast?.seq === seq) {
-            cur.lastCast = null;
+          if (cur && cur[slot]?.seq === seq) {
+            cur[slot] = null;
             syncLive();
           }
-        }, 1400);
+        }, POP_VISIBLE_MS);
         goBeep();
         if (d.battle.over) {
           finishBattle(d.battle.winner);
@@ -641,10 +677,12 @@ export default function useGame() {
   const selectSpell = useCallback(
     (spellId) => {
       const d = dataRef.current;
-      if (!d || d.finished || d.mode !== "battle") return;
+      if (!d || d.finished || !isBattleMode(d.mode)) return;
       if (d.selectedSpell === spellId) return;
+      const inc = incantationFor(spellId, d.battleStyle);
       d.selectedSpell = spellId;
-      d.answers = [incantationFor(spellId)];
+      d.answers = [inc.text];
+      d.castSynopsis = inc.synopsis;
       d.blankIndex = 0;
       d.typed = "";
       d.autoClosedChar = null;
@@ -695,10 +733,37 @@ export default function useGame() {
           d.botChars += d.bot.tick(dt);
           if (d.botChars >= d.total) finishRace("bot");
           else syncLive();
-        } else if (d.mode === "battle") {
-          const events = tickBattle(d.battle, dt);
+        } else if (isBattleMode(d.mode)) {
+          const events = tickBattle(d.battle, dt, Math.random, d.battleStyle);
           for (const ev of events) {
-            if (ev.type === "enemyHit") errorBuzz();
+            if (ev.type === "enemyHit" || ev.type === "enemyHeal") {
+              if (ev.type === "enemyHit") errorBuzz();
+              d.enemySeq += 1;
+              const seq = d.enemySeq;
+              d.lastEnemyCast = {
+                seq,
+                spellId: ev.spellId,
+                side: "enemy",
+                type:
+                  ev.type === "enemyHeal"
+                    ? "heal"
+                    : ev.spellId === "venom"
+                      ? "poison"
+                      : "attack",
+                amount: ev.amount,
+                crit: false,
+              };
+              if (enemyPopTimerRef.current) {
+                clearTimeout(enemyPopTimerRef.current);
+              }
+              enemyPopTimerRef.current = setTimeout(() => {
+                const cur = dataRef.current;
+                if (cur && cur.lastEnemyCast?.seq === seq) {
+                  cur.lastEnemyCast = null;
+                  syncLive();
+                }
+              }, POP_VISIBLE_MS);
+            }
           }
           if (d.battle.over) finishBattle(d.battle.winner);
           else syncLive();
@@ -772,7 +837,7 @@ export default function useGame() {
         return;
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (dataRef.current?.mode === "battle" && /^[1-5]$/.test(e.key)) {
+      if (isBattleMode(dataRef.current?.mode) && /^[1-5]$/.test(e.key)) {
         e.preventDefault();
         selectSpell(SPELL_ORDER[Number(e.key) - 1]);
         return;
@@ -839,6 +904,7 @@ export default function useGame() {
     return () => {
       if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
       if (castPopTimerRef.current) clearTimeout(castPopTimerRef.current);
+      if (enemyPopTimerRef.current) clearTimeout(enemyPopTimerRef.current);
     };
   }, []);
 
@@ -871,6 +937,11 @@ export default function useGame() {
     selectContent: (id) => {
       setContent(id);
       saveChoice(CONTENT_KEY, id);
+    },
+    battleStyle,
+    selectBattleStyle: (id) => {
+      setBattleStyle(id);
+      saveChoice(BATTLE_STYLE_KEY, id);
     },
     muted,
     toggleMute: () => {

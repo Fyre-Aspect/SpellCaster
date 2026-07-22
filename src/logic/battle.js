@@ -1,5 +1,6 @@
 import { BOT_DIFFICULTIES, wpmToCharsPerSecond } from "./race.js";
-import { aiIncantations } from "../data/aiPool.js";
+import { aiIncantations, aiCodeSpells } from "../data/aiPool.js";
+import { CODE_SPELLS } from "../data/spellCode.js";
 
 // The trade-off the mode is built on: heavier effects demand longer,
 // harder incantations. parWpm is the speed that earns full power.
@@ -12,7 +13,7 @@ export const SPELLS = {
     power: 11,
     parWpm: 30,
     tier: "short",
-    desc: "Quick jab — short, easy chant",
+    desc: "Quick hit",
   },
   meteor: {
     id: "meteor",
@@ -22,18 +23,18 @@ export const SPELLS = {
     power: 30,
     parWpm: 38,
     tier: "long",
-    desc: "Huge damage — long, tricky chant",
+    desc: "Huge hit",
   },
   venom: {
     id: "venom",
-    name: "Venom Hex",
+    name: "Venom",
     icon: "\u{1F40D}",
     type: "poison",
     power: 3.5,
     duration: 8,
     parWpm: 34,
     tier: "medium",
-    desc: "Poison drips damage for 8s",
+    desc: "Damage over 8s",
   },
   mend: {
     id: "mend",
@@ -43,21 +44,26 @@ export const SPELLS = {
     power: 18,
     parWpm: 34,
     tier: "medium",
-    desc: "Restore your health",
+    desc: "Heal yourself",
   },
   ward: {
     id: "ward",
-    name: "Ward",
+    name: "Shield",
     icon: "\u{1F6E1}️",
     type: "shield",
     power: 20,
     parWpm: 30,
     tier: "short",
-    desc: "Shield absorbs incoming damage",
+    desc: "Block damage",
   },
 };
 
 export const SPELL_ORDER = ["firebolt", "meteor", "venom", "mend", "ward"];
+
+export const BATTLE_STYLES = {
+  words: { id: "words", label: "\u{1F4DC} Word spells", desc: "Type magic phrases" },
+  code: { id: "code", label: "\u{1F4BB} Code spells", desc: "Type real JavaScript" },
+};
 
 const INCANTATIONS = {
   short: [
@@ -84,10 +90,16 @@ const INCANTATIONS = {
   ],
 };
 
-export function incantationFor(spellId, random = Math.random) {
+// Returns { text, synopsis } — synopsis is null for word spells
+export function incantationFor(spellId, style = "words", random = Math.random) {
   const tier = SPELLS[spellId].tier;
+  if (style === "code") {
+    const bank = CODE_SPELLS[tier].concat(aiCodeSpells(tier));
+    const pick = bank[Math.floor(random() * bank.length)];
+    return { text: pick.code, synopsis: pick.synopsis };
+  }
   const bank = INCANTATIONS[tier].concat(aiIncantations(tier));
-  return bank[Math.floor(random() * bank.length)];
+  return { text: bank[Math.floor(random() * bank.length)], synopsis: null };
 }
 
 const ENEMY_TIERS = {
@@ -119,6 +131,7 @@ function pickEnemySpell(b, random) {
 export function createBattle(difficultyId, random = Math.random) {
   const tier = ENEMY_TIERS[difficultyId] ?? ENEMY_TIERS.medium;
   return {
+    pvp: false,
     difficulty: difficultyId,
     playerHp: 100,
     playerMax: 100,
@@ -126,6 +139,7 @@ export function createBattle(difficultyId, random = Math.random) {
     playerPoison: null, // { perSecond, left } — enemy venom on you
     enemyHp: tier.hp,
     enemyMax: tier.hp,
+    enemyShield: 0,
     enemyPoison: null, // your venom on the enemy
     enemy: { casting: null, idleLeft: 1.5 + random() },
     over: false,
@@ -133,10 +147,32 @@ export function createBattle(difficultyId, random = Math.random) {
   };
 }
 
-function damagePlayer(b, amount) {
-  const absorbed = Math.min(b.playerShield, amount);
-  b.playerShield -= absorbed;
-  b.playerHp -= amount - absorbed;
+// Two wizards, one keyboard: identical stats, alternating casts
+export function createPvpBattle() {
+  return {
+    pvp: true,
+    playerHp: 100,
+    playerMax: 100,
+    playerShield: 0,
+    playerPoison: null,
+    enemyHp: 100,
+    enemyMax: 100,
+    enemyShield: 0,
+    enemyPoison: null,
+    enemy: { casting: null },
+    turn: "player",
+    over: false,
+    winner: null,
+  };
+}
+
+const OTHER_SIDE = { player: "enemy", enemy: "player" };
+
+function damageSide(b, side, amount) {
+  const shieldKey = `${side}Shield`;
+  const absorbed = Math.min(b[shieldKey], amount);
+  b[shieldKey] -= absorbed;
+  b[`${side}Hp`] -= amount - absorbed;
   return amount - absorbed;
 }
 
@@ -155,12 +191,12 @@ function settle(b) {
 
 function tickPoison(b, dt) {
   if (b.enemyPoison) {
-    b.enemyHp -= b.enemyPoison.perSecond * dt;
+    damageSide(b, "enemy", b.enemyPoison.perSecond * dt);
     b.enemyPoison.left -= dt;
     if (b.enemyPoison.left <= 0) b.enemyPoison = null;
   }
   if (b.playerPoison) {
-    damagePlayer(b, b.playerPoison.perSecond * dt);
+    damageSide(b, "player", b.playerPoison.perSecond * dt);
     b.playerPoison.left -= dt;
     if (b.playerPoison.left <= 0) b.playerPoison = null;
   }
@@ -170,8 +206,9 @@ function resolveEnemySpell(b, spellId, tier, random) {
   const spell = SPELLS[spellId];
   const variance = 0.85 + random() * 0.3;
   if (spell.type === "attack") {
-    const dealt = damagePlayer(
+    const dealt = damageSide(
       b,
+      "player",
       Math.round(spell.power * tier.damageMult * variance)
     );
     return { type: "enemyHit", spellId, amount: dealt };
@@ -191,12 +228,18 @@ function resolveEnemySpell(b, spellId, tier, random) {
   return null;
 }
 
-export function tickBattle(b, dt, random = Math.random) {
+export function tickBattle(b, dt, random = Math.random, style = "words") {
   const events = [];
   if (b.over) return events;
-  const tier = ENEMY_TIERS[b.difficulty] ?? ENEMY_TIERS.medium;
   tickPoison(b, dt);
 
+  if (b.pvp) {
+    // No AI in PvP — real time only advances poison
+    settle(b);
+    return events;
+  }
+
+  const tier = ENEMY_TIERS[b.difficulty] ?? ENEMY_TIERS.medium;
   const enemy = b.enemy;
   if (enemy.casting) {
     enemy.casting.left -= dt;
@@ -210,7 +253,7 @@ export function tickBattle(b, dt, random = Math.random) {
     enemy.idleLeft -= dt;
     if (enemy.idleLeft <= 0) {
       const spellId = pickEnemySpell(b, random);
-      const text = incantationFor(spellId, random);
+      const { text } = incantationFor(spellId, style, random);
       const cps = wpmToCharsPerSecond(
         (BOT_DIFFICULTIES[b.difficulty] ?? BOT_DIFFICULTIES.medium).baseWpm
       );
@@ -226,32 +269,40 @@ export function tickBattle(b, dt, random = Math.random) {
 
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
-// Accuracy and speed are the whole weapon: sloppy or slow casts fizzle,
-// perfect fast ones crit.
-export function applyCast(b, spellId, { accuracy, seconds, chars }) {
-  const spell = SPELLS[spellId];
+function castPower(spell, { accuracy, seconds, chars }) {
   const acc = clamp(accuracy / 100, 0, 1);
   const wpm = seconds > 0 ? chars / 5 / (seconds / 60) : 0;
   const speedMult = clamp(wpm / spell.parWpm, 0.45, 1.4);
   const crit = accuracy >= 100 && wpm >= spell.parWpm * 1.15;
   const mult = acc * acc * speedMult * (crit ? 1.5 : 1);
+  return { mult, crit, wpm };
+}
+
+// Accuracy and speed are the whole weapon: sloppy or slow casts fizzle,
+// perfect fast ones crit. `side` is who is casting ("player" in solo play).
+export function applyCast(b, spellId, metrics, side = "player") {
+  const spell = SPELLS[spellId];
+  const { mult, crit, wpm } = castPower(spell, metrics);
   const amount = Math.max(1, Math.round(spell.power * mult));
+  const foe = OTHER_SIDE[side];
   let dealt = 0;
   if (spell.type === "attack") {
-    b.enemyHp -= amount;
-    dealt = amount;
+    dealt = damageSide(b, foe, amount);
   } else if (spell.type === "poison") {
-    b.enemyPoison = { perSecond: spell.power * mult, left: spell.duration };
+    b[`${foe}Poison`] = { perSecond: spell.power * mult, left: spell.duration };
     dealt = Math.round(spell.power * mult * spell.duration);
   } else if (spell.type === "heal") {
-    b.playerHp = Math.min(b.playerMax, b.playerHp + amount);
+    b[`${side}Hp`] = Math.min(b[`${side}Max`], b[`${side}Hp`] + amount);
   } else if (spell.type === "shield") {
-    b.playerShield = Math.max(b.playerShield, amount);
+    const key = `${side}Shield`;
+    b[key] = Math.max(b[key], amount);
   }
+  if (b.pvp) b.turn = foe;
   settle(b);
   return {
     type: spell.type,
-    amount: spell.type === "poison" ? dealt : amount,
+    amount:
+      spell.type === "attack" || spell.type === "poison" ? dealt : amount,
     crit,
     wpm: Math.round(wpm),
   };

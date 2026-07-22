@@ -12,6 +12,7 @@ const EMPTY = {
   snippets: [],
   sentences: [],
   incantations: { short: [], medium: [], long: [] },
+  codeSpells: { short: [], medium: [], long: [] },
   fetchedAt: 0,
 };
 
@@ -40,6 +41,10 @@ export function aiIncantations(tier) {
   return pool.incantations[tier] ?? [];
 }
 
+export function aiCodeSpells(tier) {
+  return pool.codeSpells?.[tier] ?? [];
+}
+
 export function aiPoolCount() {
   return pool.snippets.length + pool.sentences.length;
 }
@@ -48,12 +53,14 @@ export const PROMPT = `You generate content for a cartoon typing game about Java
 {
   "snippets": [{ "id": "kebab-slug", "difficulty": 1, "template": "const x = arr.@@(@@);", "answers": ["map", "n => n + 1"] }],
   "sentences": [{ "id": "kebab-slug", "difficulty": 1, "text": "A short motivational sentence about coding or typing." }],
-  "incantations": { "short": ["..."], "medium": ["..."], "long": ["..."] }
+  "incantations": { "short": ["..."], "medium": ["..."], "long": ["..."] },
+  "codeSpells": { "short": [{ "code": "arr.filter(Boolean)", "synopsis": "Drops falsy values from the array" }], "medium": [], "long": [] }
 }
 Rules:
 - 10 snippets: real, idiomatic modern JavaScript one-to-three-liners. "@@" marks each blank; the answers array fills the blanks in order (same count as "@@" occurrences). Difficulty 1-3. Keep each line under 60 chars.
 - 10 sentences: friendly, clever, 40-70 chars, about typing, coding, or wizards. Difficulty 1-3.
 - Spell incantations for a wizard duel, dramatic and fun to type: 6 "short" (15-30 chars), 6 "medium" (35-55 chars), 4 "long" (60-90 chars). Plain ASCII punctuation only.
+- codeSpells: single lines of real, idiomatic modern JavaScript with a friendly one-sentence synopsis of what the line does: 5 "short" (15-30 chars), 5 "medium" (35-55 chars), 4 "long" (60-90 chars). No comments in the code, plain ASCII only.
 - Every id unique, lowercase kebab-case.`;
 
 function cleanString(s, maxLen) {
@@ -99,8 +106,22 @@ export function sanitize(data) {
       .filter((t) => cleanString(t, 120))
       .slice(0, 10);
   }
+  const rawCode = data.codeSpells ?? {};
+  const codeSpells = { short: [], medium: [], long: [] };
+  for (const tier of Object.keys(codeSpells)) {
+    codeSpells[tier] = (Array.isArray(rawCode[tier]) ? rawCode[tier] : [])
+      .filter(
+        (c) =>
+          c &&
+          cleanString(c.code, 120) &&
+          cleanString(c.synopsis, 140) &&
+          !c.code.includes("\n")
+      )
+      .slice(0, 10)
+      .map((c) => ({ code: c.code, synopsis: c.synopsis }));
+  }
   if (!snippets.length && !sentences.length) return null;
-  return { snippets, sentences, incantations };
+  return { snippets, sentences, incantations, codeSpells };
 }
 
 let inFlight = null;

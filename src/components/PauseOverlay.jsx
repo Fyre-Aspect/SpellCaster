@@ -8,7 +8,7 @@ export default function PauseOverlay({
   onMenu,
 }) {
   const reduced = useReducedMotion();
-  const solo = mode !== "race" && mode !== "battle";
+  const solo = mode !== "race" && mode !== "battle" && mode !== "pvp";
   return (
     <motion.div
       className="overlay pause-overlay"

@@ -8,8 +8,14 @@ export const MODES = {
   battle: {
     id: "battle",
     label: "Spell Battle",
-    desc: "Duel a rival wizard — type spells to cast",
+    desc: "Fight a rival wizard — type to cast spells",
     startLabel: "Start Duel",
+  },
+  pvp: {
+    id: "pvp",
+    label: "PvP Duel",
+    desc: "Two players, one keyboard — take turns casting",
+    startLabel: "Start PvP",
   },
   endless: {
     id: "endless",

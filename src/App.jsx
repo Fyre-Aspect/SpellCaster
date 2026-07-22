@@ -27,10 +27,12 @@ export default function App() {
             onStart={game.start}
             summary={game.summary}
             aiCount={game.aiCount}
+            battleStyle={game.battleStyle}
+            onSelectBattleStyle={game.selectBattleStyle}
             muted={game.muted}
             onToggleMute={game.toggleMute}
           />
-        ) : game.mode === "battle" ? (
+        ) : game.mode === "battle" || game.mode === "pvp" ? (
           <BattleScreen key="battle" game={game} />
         ) : (
           <RaceScreen key="race" game={game} />
