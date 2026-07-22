@@ -4,6 +4,7 @@ import { BATTLE_STYLES } from "../logic/battle.js";
 import { BOT_DIFFICULTIES, DIFFICULTY_ORDER } from "../logic/race.js";
 import { CONTENT_TYPES } from "../data/challenges.js";
 import Sparkline from "./Sparkline.jsx";
+import Lobby from "./Lobby.jsx";
 
 const CONTENT_HINTS = {
   blanks: null,
@@ -43,11 +44,16 @@ export default function Menu({
   aiCount,
   battleStyle,
   onSelectBattleStyle,
+  net,
+  onHostOnline,
+  onJoinOnline,
+  onCancelOnline,
   muted,
   onToggleMute,
 }) {
   const reduced = useReducedMotion();
-  const isBattle = selectedMode === "battle" || selectedMode === "pvp";
+  const isOnline = selectedMode === "online";
+  const isBattle = selectedMode === "battle" || selectedMode === "pvp" || isOnline;
   return (
     <motion.section
       className="menu"
@@ -117,13 +123,18 @@ export default function Menu({
           ))}
         </div>
       )}
-      <div className="best-chip">{bestText(selectedMode, best)}</div>
-      {aiCount > 0 && (
+      {isOnline && (
+        <p className="online-note">Host&apos;s spell style is used for both players</p>
+      )}
+      {!isOnline && (
+        <div className="best-chip">{bestText(selectedMode, best)}</div>
+      )}
+      {!isOnline && aiCount > 0 && (
         <div className="ai-chip">
           ✨ {aiCount} fresh AI challenges in today&apos;s mix
         </div>
       )}
-      {summary && (
+      {!isOnline && summary && (
         <div className="stats-card">
           <span className="stats-line">
             {summary.count} game{summary.count === 1 ? "" : "s"} &middot; avg
@@ -135,15 +146,24 @@ export default function Menu({
           <Sparkline values={summary.recentWpm} />
         </div>
       )}
-      <motion.button
-        className="btn btn-big"
-        autoFocus
-        onClick={onStart}
-        whileHover={reduced ? undefined : { scale: 1.05, rotate: -1.5 }}
-        whileTap={reduced ? undefined : { scale: 0.95 }}
-      >
-        {MODES[selectedMode].startLabel}
-      </motion.button>
+      {isOnline ? (
+        <Lobby
+          net={net}
+          onHost={onHostOnline}
+          onJoin={onJoinOnline}
+          onCancel={onCancelOnline}
+        />
+      ) : (
+        <motion.button
+          className="btn btn-big"
+          autoFocus
+          onClick={onStart}
+          whileHover={reduced ? undefined : { scale: 1.05, rotate: -1.5 }}
+          whileTap={reduced ? undefined : { scale: 0.95 }}
+        >
+          {MODES[selectedMode].startLabel}
+        </motion.button>
+      )}
       <div className="toggle-row">
         {content === "blanks" && !isBattle && (
           <button type="button" className="toggle-btn" onClick={onToggleAnswers}>
@@ -163,12 +183,22 @@ export default function Menu({
                 then pass the keyboard
               </li>
             )}
+            {isOnline && (
+              <li>
+                Duel a friend anywhere &mdash; both of you cast at the same
+                time, first to drop the other&apos;s HP wins
+              </li>
+            )}
             <li>
               Pick spells with 1&ndash;5 &mdash; stronger spells take longer to
               type
             </li>
             <li>Type fast with no mistakes to hit harder &middot; perfect + quick = CRIT</li>
-            <li>Press Enter to start &middot; Esc pauses</li>
+            <li>
+              {isOnline
+                ? "Esc leaves the duel"
+                : "Press Enter to start · Esc pauses"}
+            </li>
           </>
         ) : (
           <>

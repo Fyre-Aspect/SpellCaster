@@ -60,9 +60,12 @@ export default function BattleScreen({ game }) {
   const b = game.live.battle;
   if (!b) return null;
   const pvp = b.pvp;
+  const online = b.online;
   const labels = pvp
     ? { player: "P1", enemy: "P2" }
-    : { player: "YOU", enemy: "RIVAL" };
+    : online
+      ? { player: "YOU", enemy: "FOE" }
+      : { player: "YOU", enemy: "RIVAL" };
   const finished = game.screen === "finished";
   const winner = game.result?.winner ?? "player";
   const enemySpell = b.enemyCast ? SPELLS[b.enemyCast.spellId] : null;
@@ -95,7 +98,7 @@ export default function BattleScreen({ game }) {
           enemyCasting={
             pvp
               ? !!b.selectedSpell && b.turn === "enemy" && !finished
-              : !!b.enemyCast
+              : !!b.enemyCast && !finished
           }
           playerCast={b.lastCast}
           enemyCast={b.lastEnemyCast}
@@ -123,7 +126,7 @@ export default function BattleScreen({ game }) {
           </div>
           <div className="hp-side right">
             <HpCard
-              label={pvp ? "🧙 Player 2" : "🧛 Rival"}
+              label={pvp ? "🧙 Player 2" : online ? "🧙 Opponent" : "🧛 Rival"}
               hp={b.enemyHp}
               max={b.enemyMax}
               tone="bot"
@@ -145,7 +148,8 @@ export default function BattleScreen({ game }) {
         ) : enemySpell ? (
           <>
             <span>
-              ⚠️ Rival is casting <strong>{enemySpell.name}</strong>
+              ⚠️ {online ? "Opponent" : "Rival"} is casting{" "}
+              <strong>{enemySpell.name}</strong>
             </span>
             <div className="bar telegraph-bar">
               <div
@@ -155,7 +159,9 @@ export default function BattleScreen({ game }) {
             </div>
           </>
         ) : (
-          <span className="telegraph-idle">Rival is thinking…</span>
+          <span className="telegraph-idle">
+            {online ? "Cast fast — your opponent is too!" : "Rival is thinking…"}
+          </span>
         )}
       </div>
       {b.selectedSpell && b.incantation ? (

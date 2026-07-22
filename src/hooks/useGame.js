@@ -79,6 +79,10 @@ const isBattleMode = (mode) =>
 
 const NET_IDLE = { status: "idle", code: null, error: null, rematchWaiting: false };
 const NET_STATE_MS = 120; // throttle for online state broadcasts
+// Both sides broadcast state continuously; a gap this long means the
+// opponent's tab closed or their connection dropped (WebRTC's own
+// disconnect detection is far slower)
+const NET_TIMEOUT_MS = 5000;
 
 function bestKeyFor(mode, difficulty, content) {
   if (mode === "race") {
@@ -262,6 +266,7 @@ export default function useGame() {
       battle: d.battle
         ? {
             pvp: d.battle.pvp,
+            online: !!d.battle.online,
             turn: d.battle.pvp ? d.battle.turn : null,
             playerHp: Math.max(0, Math.ceil(d.battle.playerHp)),
             playerMax: d.battle.playerMax,
@@ -597,6 +602,7 @@ export default function useGame() {
           mode === "online" ? (netStyleRef.current ?? battleStyle) : battleStyle;
         d.opponentLeft = false;
         d.lastNetSend = 0;
+        d.lastNetRecv = performance.now();
         localRematchRef.current = false;
         remoteRematchRef.current = false;
         d.selectedSpell = null;
@@ -680,10 +686,26 @@ export default function useGame() {
           d.damageDealt += result.amount;
         }
         d.castSeq += 1;
-        const cast = { seq: d.castSeq, spellId: d.selectedSpell, side, ...result };
+        const spellId = d.selectedSpell;
+        const cast = { seq: d.castSeq, spellId, side, ...result };
         const timerRef = side === "enemy" ? enemyPopTimerRef : castPopTimerRef;
         const slot = side === "enemy" ? "lastEnemyCast" : "lastCast";
         d[slot] = cast;
+        // Online: relay the cast so the opponent applies it against their
+        // authoritative HP and shows our spell flying in. Our own enemyHp is
+        // an optimistic mirror that their next state broadcast corrects.
+        if (d.mode === "online") {
+          netRef.current?.send({
+            t: "cast",
+            spellId,
+            kind: result.type,
+            raw: result.raw,
+            perSecond: result.perSecond,
+            duration: result.duration,
+            crit: result.crit,
+            amount: result.amount,
+          });
+        }
         d.selectedSpell = null;
         d.answers = [];
         d.castSynopsis = null;
@@ -832,10 +854,159 @@ export default function useGame() {
       d.castKeystrokes = 0;
       d.castCorrect = 0;
       uiClick();
+      if (d.mode === "online") sendNetState(true);
       syncLive();
+    },
+    [syncLive, sendNetState]
+  );
+
+  // Show an incoming online cast: enemy projectile + damage pop
+  const showEnemyOnlineCast = useCallback(
+    (d, spellId, result) => {
+      d.enemySeq += 1;
+      const seq = d.enemySeq;
+      d.lastEnemyCast = { seq, spellId, side: "enemy", ...result };
+      if (enemyPopTimerRef.current) clearTimeout(enemyPopTimerRef.current);
+      enemyPopTimerRef.current = setTimeout(() => {
+        const cur = dataRef.current;
+        if (cur && cur.lastEnemyCast?.seq === seq) {
+          cur.lastEnemyCast = null;
+          syncLive();
+        }
+      }, POP_VISIBLE_MS);
     },
     [syncLive]
   );
+
+  const handleNetMessage = useCallback(
+    (m) => {
+      if (!m || typeof m !== "object") return;
+      const d = dataRef.current;
+      // Any message proves the opponent is alive — refresh the watchdog
+      if (d) d.lastNetRecv = performance.now();
+      if (m.t === "start") {
+        // Joiner: host has chosen the style and kicked off the duel
+        netStyleRef.current =
+          m.style && Object.keys(BATTLE_STYLES).includes(m.style)
+            ? m.style
+            : "words";
+        dispatch({ type: "START", mode: "online" });
+        return;
+      }
+      if (m.t === "bye") {
+        // Opponent backed out before the match started
+        teardownNet();
+        setNetState({ ...NET_IDLE, status: "error", error: "peer-left" });
+        return;
+      }
+      if (!d || d.mode !== "online" || !d.battle) return;
+      if (m.t === "state") {
+        // Mirror the opponent's authoritative side
+        const b = d.battle;
+        b.enemyHp = m.hp;
+        b.enemyMax = m.max;
+        b.enemyShield = m.shield;
+        // perSecond 0 so our local poison tick never double-counts — the
+        // opponent's HP already reflects their own venom damage
+        b.enemyPoison =
+          m.poisonLeft > 0 ? { left: m.poisonLeft, perSecond: 0 } : null;
+        b.enemy.casting = m.casting
+          ? { spellId: m.casting.spellId, progress: m.casting.progress }
+          : null;
+        if (!d.finished) syncLive();
+        return;
+      }
+      if (m.t === "cast") {
+        if (d.finished) return;
+        const result = {
+          type: m.kind,
+          amount: m.amount,
+          crit: m.crit,
+        };
+        showEnemyOnlineCast(d, m.spellId, result);
+        const dealt = applyRemoteCast(d.battle, {
+          kind: m.kind,
+          raw: m.raw,
+          perSecond: m.perSecond,
+          duration: m.duration,
+        });
+        if (m.kind === "attack" && dealt > 0) errorBuzz();
+        if (d.battle.over) {
+          finishBattle(d.battle.winner);
+        } else {
+          sendNetState(true);
+          syncLive();
+        }
+        return;
+      }
+      if (m.t === "gameover") {
+        // Opponent reports they died — we win regardless of our HP mirror
+        if (d.finished) return;
+        d.battle.over = true;
+        d.battle.winner = "player";
+        finishBattle("player");
+        return;
+      }
+      if (m.t === "rematch") {
+        remoteRematchRef.current = true;
+        if (localRematchRef.current) {
+          startOnlineRematchRef.current?.();
+        } else {
+          setNetState((n) => ({ ...n, rematchWaiting: true }));
+        }
+        return;
+      }
+    },
+    [syncLive, showEnemyOnlineCast, finishBattle, sendNetState, teardownNet]
+  );
+
+  const netPeerLeft = useCallback(() => {
+    const d = dataRef.current;
+    if (d && isBattleMode(d.mode) && d.mode === "online" && !d.finished) {
+      // Opponent vanished mid-duel — award the win by forfeit
+      d.opponentLeft = true;
+      d.battle.over = true;
+      d.battle.winner = "player";
+      finishBattle("player");
+    } else if (state.screen === "finished") {
+      remoteRematchRef.current = false;
+      setNetState((n) => ({ ...n, status: "error", error: "peer-left" }));
+    } else {
+      teardownNet();
+      setNetState({ ...NET_IDLE, status: "error", error: "peer-left" });
+    }
+  }, [finishBattle, teardownNet, state.screen]);
+
+  // Both players restart once each has asked for a rematch
+  const startOnlineRematch = useCallback(() => {
+    localRematchRef.current = false;
+    remoteRematchRef.current = false;
+    setNetState((n) => ({ ...n, rematchWaiting: false }));
+    dispatch({ type: "RACE_AGAIN", round: 1 });
+  }, []);
+
+  const requestOnlineRematch = useCallback(() => {
+    if (!netRef.current?.connected) {
+      setNetState((n) => ({ ...n, status: "error", error: "peer-left" }));
+      return;
+    }
+    localRematchRef.current = true;
+    netRef.current.send({ t: "rematch" });
+    if (remoteRematchRef.current) startOnlineRematch();
+    else setNetState((n) => ({ ...n, rematchWaiting: true }));
+  }, [startOnlineRematch]);
+
+  const leaveOnline = useCallback(() => {
+    netRef.current?.send({ t: "bye" });
+    teardownNet();
+    setNetState(NET_IDLE);
+    dispatch({ type: "MENU" });
+  }, [teardownNet]);
+
+  const startOnlineRematchRef = useRef(null);
+  startOnlineRematchRef.current = startOnlineRematch;
+  netMsgRef.current = handleNetMessage;
+  netPeerLeftRef.current = netPeerLeft;
 
   useEffect(() => {
     if (state.screen !== "countdown") return;
@@ -874,6 +1045,16 @@ export default function useGame() {
           if (d.botChars >= d.total) finishRace("bot");
           else syncLive();
         } else if (isBattleMode(d.mode)) {
+          // Watchdog: opponent stopped broadcasting → treat as a disconnect
+          if (
+            d.mode === "online" &&
+            !d.finished &&
+            performance.now() - d.lastNetRecv > NET_TIMEOUT_MS
+          ) {
+            netPeerLeftRef.current?.();
+            rafId = requestAnimationFrame(frame);
+            return;
+          }
           const events = tickBattle(d.battle, dt, Math.random, d.battleStyle);
           for (const ev of events) {
             if (ev.type === "enemyHit" || ev.type === "enemyHeal") {
@@ -906,7 +1087,10 @@ export default function useGame() {
             }
           }
           if (d.battle.over) finishBattle(d.battle.winner);
-          else syncLive();
+          else {
+            if (d.mode === "online") sendNetState();
+            syncLive();
+          }
         } else if (d.timeLimit != null && d.elapsed >= d.timeLimit) {
           finishRun();
         } else {
@@ -917,7 +1101,7 @@ export default function useGame() {
     };
     rafId = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(rafId);
-  }, [state.screen, finishRace, finishRun, finishBattle, syncLive]);
+  }, [state.screen, finishRace, finishRun, finishBattle, syncLive, sendNetState]);
 
   useEffect(() => {
     function onKeyDown(e) {
@@ -925,7 +1109,8 @@ export default function useGame() {
       const onButton =
         e.target instanceof HTMLElement && e.target.closest("button") !== null;
       if (state.screen === "menu") {
-        if (e.key === "Enter" && !onButton) {
+        // Online goes through the lobby, not a plain Enter-to-start
+        if (e.key === "Enter" && !onButton && selectedMode !== "online") {
           e.preventDefault();
           dispatch({ type: "START", mode: selectedMode });
         }
@@ -934,11 +1119,24 @@ export default function useGame() {
       if (state.screen === "countdown") {
         if (e.key === "Escape") {
           e.preventDefault();
+          if (state.mode === "online") {
+            netRef.current?.send({ t: "bye" });
+            teardownNet();
+            setNetState(NET_IDLE);
+          }
           dispatch({ type: "ABORT" });
         }
         return;
       }
       if (state.screen === "finished") {
+        if (state.mode === "online") {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            leaveOnline();
+          }
+          // Rematch needs both players — handled by the button, not Enter
+          return;
+        }
         if (e.key === "Enter" && !onButton) {
           e.preventDefault();
           dispatch({ type: "RACE_AGAIN" });
@@ -966,7 +1164,12 @@ export default function useGame() {
       if (e.key === "Escape") {
         e.preventDefault();
         const d = dataRef.current;
-        if (d && !d.finished) dispatch({ type: "PAUSE" });
+        // Real-time online can't pause — Esc forfeits and leaves
+        if (d && d.mode === "online" && !d.finished) {
+          leaveOnline();
+        } else if (d && !d.finished) {
+          dispatch({ type: "PAUSE" });
+        }
         return;
       }
       if (e.key === "Control") {
@@ -1019,6 +1222,7 @@ export default function useGame() {
     };
   }, [
     state.screen,
+    state.mode,
     selectedMode,
     showAnswers,
     content,
@@ -1028,6 +1232,8 @@ export default function useGame() {
     selectSpell,
     finishRun,
     syncLive,
+    leaveOnline,
+    teardownNet,
   ]);
 
   useEffect(() => {
@@ -1045,6 +1251,7 @@ export default function useGame() {
       if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
       if (castPopTimerRef.current) clearTimeout(castPopTimerRef.current);
       if (enemyPopTimerRef.current) clearTimeout(enemyPopTimerRef.current);
+      netRef.current?.destroy();
     };
   }, []);
 
@@ -1098,6 +1305,10 @@ export default function useGame() {
     },
     start: () => dispatch({ type: "START", mode: selectedMode }),
     raceAgain: () => {
+      if (state.mode === "online") {
+        requestOnlineRematch();
+        return;
+      }
       let round;
       if (state.mode === "race") {
         const won = state.result?.winner === "player";
@@ -1114,7 +1325,17 @@ export default function useGame() {
     restartRun: () =>
       dispatch({ type: "RESTART", round: dataRef.current?.startRound }),
     endRun: finishRun,
-    toMenu: () => dispatch({ type: "MENU" }),
+    toMenu: () => {
+      if (state.mode === "online") {
+        leaveOnline();
+        return;
+      }
+      dispatch({ type: "MENU" });
+    },
+    net: netState,
+    hostOnline,
+    joinOnline,
+    cancelOnline,
     peekStart: () => {
       if (state.screen === "racing" && !showAnswers && content === "blanks") {
         applyPeekPenalty();

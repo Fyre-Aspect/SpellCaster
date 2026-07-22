@@ -29,10 +29,16 @@ export default function App() {
             aiCount={game.aiCount}
             battleStyle={game.battleStyle}
             onSelectBattleStyle={game.selectBattleStyle}
+            net={game.net}
+            onHostOnline={game.hostOnline}
+            onJoinOnline={game.joinOnline}
+            onCancelOnline={game.cancelOnline}
             muted={game.muted}
             onToggleMute={game.toggleMute}
           />
-        ) : game.mode === "battle" || game.mode === "pvp" ? (
+        ) : game.mode === "battle" ||
+          game.mode === "pvp" ||
+          game.mode === "online" ? (
           <BattleScreen key="battle" game={game} />
         ) : (
           <RaceScreen key="race" game={game} />
@@ -61,6 +67,7 @@ export default function App() {
             key="finished"
             result={game.result}
             summary={game.summary}
+            net={game.net}
             onRaceAgain={game.raceAgain}
             onMenu={game.toMenu}
           />
