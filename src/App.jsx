@@ -1,5 +1,6 @@
 import { AnimatePresence } from "motion/react";
 import useGame from "./hooks/useGame.js";
+import Landing from "./components/Landing.jsx";
 import Menu from "./components/Menu.jsx";
 import RaceScreen from "./components/RaceScreen.jsx";
 import BattleScreen from "./components/BattleScreen.jsx";
@@ -12,7 +13,9 @@ export default function App() {
   return (
     <div className="app">
       <AnimatePresence mode="wait">
-        {game.screen === "menu" ? (
+        {game.screen === "landing" ? (
+          <Landing key="landing" onEnter={game.enter} />
+        ) : game.screen === "menu" ? (
           <Menu
             key="menu"
             best={game.best}

@@ -1108,6 +1108,13 @@ export default function useGame() {
       // A focused button handles Enter natively — don't also dispatch
       const onButton =
         e.target instanceof HTMLElement && e.target.closest("button") !== null;
+      if (state.screen === "landing") {
+        if ((e.key === "Enter" || e.key === " ") && !onButton) {
+          e.preventDefault();
+          dispatch({ type: "ENTER" });
+        }
+        return;
+      }
       if (state.screen === "menu") {
         // Online goes through the lobby, not a plain Enter-to-start
         if (e.key === "Enter" && !onButton && selectedMode !== "online") {
@@ -1302,6 +1309,11 @@ export default function useGame() {
         saveChoice(ANSWERS_KEY, String(next));
         return next;
       });
+    },
+    enter: () => {
+      initAudio();
+      uiClick();
+      dispatch({ type: "ENTER" });
     },
     start: () => dispatch({ type: "START", mode: selectedMode }),
     raceAgain: () => {

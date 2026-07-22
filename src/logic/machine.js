@@ -38,10 +38,15 @@ export const MODES = {
   },
 };
 
-export const initialState = { screen: "menu", mode: "race", round: 1, result: null };
+export const initialState = { screen: "landing", mode: "race", round: 1, result: null };
 
 export function gameReducer(state, event) {
   switch (state.screen) {
+    case "landing":
+      if (event.type === "ENTER") {
+        return { ...state, screen: "menu" };
+      }
+      return state;
     case "menu":
       if (event.type === "START") {
         return {

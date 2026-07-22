@@ -62,8 +62,17 @@ export default function Menu({
       exit={{ opacity: 0 }}
       transition={{ duration: 0.35, ease: "easeOut" }}
     >
+      <button
+        type="button"
+        className="menu-corner"
+        onClick={onToggleMute}
+        aria-label={muted ? "Unmute sound" : "Mute sound"}
+        title={muted ? "Sound off" : "Sound on"}
+      >
+        {muted ? "🔇" : "🔊"}
+      </button>
       <h1 className="title">SPELLCASTER</h1>
-      <p className="tagline">Fill the missing code. Outtype the bot!</p>
+      <p className="tagline">Type spells. Outcast your rival.</p>
       <div className="mode-row">
         {Object.values(MODES).map((mode) => (
           <button
@@ -164,16 +173,13 @@ export default function Menu({
           {MODES[selectedMode].startLabel}
         </motion.button>
       )}
-      <div className="toggle-row">
-        {content === "blanks" && !isBattle && (
+      {content === "blanks" && !isBattle && (
+        <div className="toggle-row">
           <button type="button" className="toggle-btn" onClick={onToggleAnswers}>
             Answers shown: {showAnswers ? "ON" : "OFF"}
           </button>
-        )}
-        <button type="button" className="toggle-btn" onClick={onToggleMute}>
-          Sound: {muted ? "OFF" : "ON"}
-        </button>
-      </div>
+        </div>
+      )}
       <ul className="hints">
         {isBattle ? (
           <>
