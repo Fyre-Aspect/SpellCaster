@@ -1,5 +1,6 @@
 import { AnimatePresence } from "motion/react";
 import useGame from "./hooks/useGame.js";
+import useAuth from "./hooks/useAuth.js";
 import Landing from "./components/Landing.jsx";
 import Menu from "./components/Menu.jsx";
 import RaceScreen from "./components/RaceScreen.jsx";
@@ -10,11 +11,21 @@ import PauseOverlay from "./components/PauseOverlay.jsx";
 
 export default function App() {
   const game = useGame();
+  const auth = useAuth();
   return (
     <div className="app">
       <AnimatePresence mode="wait">
         {game.screen === "landing" ? (
-          <Landing key="landing" onEnter={game.enter} />
+          <Landing
+            key="landing"
+            onEnter={game.enter}
+            user={auth.user}
+            ready={auth.ready}
+            busy={auth.busy}
+            error={auth.error}
+            onSignIn={auth.signInGoogle}
+            onSignOut={auth.logout}
+          />
         ) : game.screen === "menu" ? (
           <Menu
             key="menu"
@@ -36,6 +47,8 @@ export default function App() {
             onHostOnline={game.hostOnline}
             onJoinOnline={game.joinOnline}
             onCancelOnline={game.cancelOnline}
+            user={auth.user}
+            onSignOut={auth.logout}
             muted={game.muted}
             onToggleMute={game.toggleMute}
           />

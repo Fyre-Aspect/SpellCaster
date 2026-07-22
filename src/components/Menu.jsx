@@ -48,6 +48,8 @@ export default function Menu({
   onHostOnline,
   onJoinOnline,
   onCancelOnline,
+  user,
+  onSignOut,
   muted,
   onToggleMute,
 }) {
@@ -62,6 +64,21 @@ export default function Menu({
       exit={{ opacity: 0 }}
       transition={{ duration: 0.35, ease: "easeOut" }}
     >
+      {user && (
+        <div className="menu-user">
+          {user.photo ? (
+            <img className="user-avatar" src={user.photo} alt="" referrerPolicy="no-referrer" />
+          ) : (
+            <span className="user-avatar user-avatar-fallback">
+              {(user.name?.charAt(0) ?? "🧙").toUpperCase()}
+            </span>
+          )}
+          <span className="menu-user-name">{user.name?.split(" ")[0]}</span>
+          <button type="button" className="menu-signout" onClick={onSignOut}>
+            Sign out
+          </button>
+        </div>
+      )}
       <button
         type="button"
         className="menu-corner"
