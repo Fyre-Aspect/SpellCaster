@@ -5,6 +5,7 @@ import { BOT_DIFFICULTIES, DIFFICULTY_ORDER } from "../logic/race.js";
 import { CONTENT_TYPES } from "../data/challenges.js";
 import Sparkline from "./Sparkline.jsx";
 import Lobby from "./Lobby.jsx";
+import ModeCarousel from "./ModeCarousel.jsx";
 
 const CONTENT_HINTS = {
   blanks: null,
@@ -90,63 +91,60 @@ export default function Menu({
       </button>
       <h1 className="title">SPELLCASTER</h1>
       <p className="tagline">Type spells. Outcast your rival.</p>
-      <div className="mode-row">
-        {Object.values(MODES).map((mode) => (
-          <button
-            key={mode.id}
-            type="button"
-            className={`mode-btn ${selectedMode === mode.id ? "selected" : ""}`}
-            onClick={() => onSelectMode(mode.id)}
-          >
-            <span className="mode-name">{mode.label}</span>
-            <span className="mode-desc">{mode.desc}</span>
-          </button>
-        ))}
-      </div>
+      <ModeCarousel selectedMode={selectedMode} onSelectMode={onSelectMode} />
       {(selectedMode === "race" || selectedMode === "battle") && (
-        <div className="diff-row">
-          {DIFFICULTY_ORDER.map((id) => {
-            const profile = BOT_DIFFICULTIES[id];
-            return (
-              <button
-                key={id}
-                type="button"
-                className={`diff-btn ${difficulty === id ? "selected" : ""}`}
-                onClick={() => onSelectDifficulty(id)}
-              >
-                {profile.label} &middot; {profile.baseWpm} WPM
-              </button>
-            );
-          })}
+        <div className="option-group">
+          <span className="option-label">Difficulty</span>
+          <div className="diff-row">
+            {DIFFICULTY_ORDER.map((id) => {
+              const profile = BOT_DIFFICULTIES[id];
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={`diff-btn ${difficulty === id ? "selected" : ""}`}
+                  onClick={() => onSelectDifficulty(id)}
+                >
+                  {profile.label} &middot; {profile.baseWpm} WPM
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
       {isBattle && (
-        <div className="content-row">
-          {Object.values(BATTLE_STYLES).map((style) => (
-            <button
-              key={style.id}
-              type="button"
-              className={`content-btn ${battleStyle === style.id ? "selected" : ""}`}
-              onClick={() => onSelectBattleStyle(style.id)}
-              title={style.desc}
-            >
-              {style.label}
-            </button>
-          ))}
+        <div className="option-group">
+          <span className="option-label">Spell style</span>
+          <div className="content-row">
+            {Object.values(BATTLE_STYLES).map((style) => (
+              <button
+                key={style.id}
+                type="button"
+                className={`content-btn ${battleStyle === style.id ? "selected" : ""}`}
+                onClick={() => onSelectBattleStyle(style.id)}
+                title={style.desc}
+              >
+                {style.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
       {!isBattle && (
-        <div className="content-row">
-          {Object.values(CONTENT_TYPES).map((type) => (
-            <button
-              key={type.id}
-              type="button"
-              className={`content-btn ${content === type.id ? "selected" : ""}`}
-              onClick={() => onSelectContent(type.id)}
-            >
-              {type.label}
-            </button>
-          ))}
+        <div className="option-group">
+          <span className="option-label">Challenge</span>
+          <div className="content-row">
+            {Object.values(CONTENT_TYPES).map((type) => (
+              <button
+                key={type.id}
+                type="button"
+                className={`content-btn ${content === type.id ? "selected" : ""}`}
+                onClick={() => onSelectContent(type.id)}
+              >
+                {type.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
       {isOnline && (

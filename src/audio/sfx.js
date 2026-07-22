@@ -122,6 +122,13 @@ export function uiClick() {
   playTone({ freq: 700, type: "triangle", duration: 0.04, gain: 0.35 });
 }
 
+// Rising magical swoosh for the fireball screen transition
+export function castWhoosh() {
+  playTone({ freq: 160, slideTo: 880, type: "sawtooth", duration: 0.5, gain: 0.28 });
+  playTone({ freq: 420, slideTo: 1250, type: "triangle", duration: 0.55, gain: 0.2 });
+  playTone({ freq: 90, slideTo: 220, type: "sine", duration: 0.6, gain: 0.3 });
+}
+
 export function isMuted() {
   return muted;
 }

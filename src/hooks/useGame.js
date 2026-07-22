@@ -208,6 +208,9 @@ export default function useGame() {
   const [aiBump, setAiBump] = useState(0);
   const [muted, setMuted] = useState(isMuted);
   const [netState, setNetState] = useState(NET_IDLE);
+  const [transition, setTransition] = useState(false);
+  const transitionActiveRef = useRef(false);
+  const transitionActionRef = useRef(null);
   const dataRef = useRef(null);
   const comboTimerRef = useRef(null);
   const castPopTimerRef = useRef(null);
@@ -1002,6 +1005,30 @@ export default function useGame() {
     setNetState(NET_IDLE);
     dispatch({ type: "MENU" });
   }, [teardownNet]);
+
+  // Spell-cast screen wipe: defer a navigation until the fireball reaches
+  // centre so the screen swaps hidden behind the veil. One at a time.
+  const playTransition = useCallback((action) => {
+    if (transitionActiveRef.current) {
+      action?.();
+      return;
+    }
+    transitionActiveRef.current = true;
+    transitionActionRef.current = action ?? null;
+    setTransition(true);
+  }, []);
+
+  const transitionMid = useCallback(() => {
+    const action = transitionActionRef.current;
+    transitionActionRef.current = null;
+    action?.();
+  }, []);
+
+  const transitionDone = useCallback(() => {
+    transitionActiveRef.current = false;
+    transitionActionRef.current = null;
+    setTransition(false);
+  }, []);
 
   const startOnlineRematchRef = useRef(null);
   startOnlineRematchRef.current = startOnlineRematch;
