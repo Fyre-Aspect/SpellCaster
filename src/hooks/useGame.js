@@ -17,11 +17,14 @@ import {
   BATTLE_STYLES,
   SPELL_ORDER,
   applyCast,
+  applyRemoteCast,
   createBattle,
+  createOnlineBattle,
   createPvpBattle,
   incantationFor,
   tickBattle,
 } from "../logic/battle.js";
+import { createNet, normalizeCode, randomCode } from "../logic/net.js";
 import { aiPoolCount, refreshAiPool } from "../data/aiPool.js";
 import {
   BOT_DIFFICULTIES,
@@ -71,7 +74,11 @@ const AUTO_PAIRS = {
 const CLOSER_TAIL_RE = /^[)\]};,\s]*$/;
 const HAS_CLOSER_RE = /[)\]}]/;
 
-const isBattleMode = (mode) => mode === "battle" || mode === "pvp";
+const isBattleMode = (mode) =>
+  mode === "battle" || mode === "pvp" || mode === "online";
+
+const NET_IDLE = { status: "idle", code: null, error: null, rematchWaiting: false };
+const NET_STATE_MS = 120; // throttle for online state broadcasts
 
 function bestKeyFor(mode, difficulty, content) {
   if (mode === "race") {
@@ -196,10 +203,19 @@ export default function useGame() {
   const [historyBump, setHistoryBump] = useState(0);
   const [aiBump, setAiBump] = useState(0);
   const [muted, setMuted] = useState(isMuted);
+  const [netState, setNetState] = useState(NET_IDLE);
   const dataRef = useRef(null);
   const comboTimerRef = useRef(null);
   const castPopTimerRef = useRef(null);
   const enemyPopTimerRef = useRef(null);
+  const netRef = useRef(null);
+  const netMsgRef = useRef(null);
+  const netPeerLeftRef = useRef(null);
+  const netStyleRef = useRef(null);
+  const battleStyleRef = useRef(battleStyle);
+  battleStyleRef.current = battleStyle;
+  const localRematchRef = useRef(false);
+  const remoteRematchRef = useRef(false);
 
   const history = useMemo(() => loadHistory(), [historyBump]);
   const summary = useMemo(() => summarizeHistory(history), [history]);
@@ -388,14 +404,23 @@ export default function useGame() {
         round: d.round,
         snippetId: "duel",
         newBest: false,
+        opponentLeft: !!d.opponentLeft,
         misses: collectMisses(d),
         blanksTotal: d.blankLog.length,
       };
       recordRunFrom(d, stats);
       setHistoryBump((b) => b + 1);
+      if (d.mode === "online" && winner === "enemy" && !d.opponentLeft) {
+        // Tell the opponent we died — their mirror of our HP is not
+        // authoritative, so they wait for this announcement
+        netRef.current?.send({ t: "gameover" });
+      }
       if (d.mode === "pvp") {
         // Someone in the room won either way
         winFanfare();
+      } else if (d.mode === "online") {
+        if (winner === "player") winFanfare();
+        else loseSlide();
       } else if (winner === "player") {
         const key = bestKeyFor("battle", d.difficulty, d.content);
         const prev = loadJson(key);
@@ -413,6 +438,111 @@ export default function useGame() {
     },
     [syncLive]
   );
+
+  const teardownNet = useCallback(() => {
+    netRef.current?.destroy();
+    netRef.current = null;
+    netStyleRef.current = null;
+    localRematchRef.current = false;
+    remoteRematchRef.current = false;
+  }, []);
+
+  // Broadcast our authoritative side (HP, shield, poison, what we're
+  // casting) to the online opponent, throttled unless forced
+  const sendNetState = useCallback((force = false) => {
+    const d = dataRef.current;
+    const net = netRef.current;
+    if (!d || d.mode !== "online" || !d.battle || !net?.connected) return;
+    const now = performance.now();
+    if (!force && now - d.lastNetSend < NET_STATE_MS) return;
+    d.lastNetSend = now;
+    const expected = d.answers[0] ?? "";
+    net.send({
+      t: "state",
+      hp: Math.max(0, Math.ceil(d.battle.playerHp)),
+      max: d.battle.playerMax,
+      shield: Math.round(d.battle.playerShield),
+      poisonLeft: d.battle.playerPoison ? d.battle.playerPoison.left : 0,
+      casting:
+        d.selectedSpell && expected
+          ? {
+              spellId: d.selectedSpell,
+              progress: Math.min(
+                1,
+                d.typed.length / Math.max(1, expected.length)
+              ),
+            }
+          : null,
+    });
+  }, []);
+
+  const hostOnline = useCallback(() => {
+    teardownNet();
+    setNetState({ ...NET_IDLE, status: "starting" });
+    let attempts = 0;
+    const tryHost = () => {
+      const net = createNet({
+        onWaiting: (code) => setNetState({ ...NET_IDLE, status: "waiting", code }),
+        onConnected: (isHost) => {
+          setNetState((n) => ({ ...n, status: "connected", error: null }));
+          if (isHost) {
+            // Host's spell style rules the match
+            netStyleRef.current = battleStyleRef.current;
+            netRef.current?.send({ t: "start", style: battleStyleRef.current });
+            dispatch({ type: "START", mode: "online" });
+          }
+        },
+        onMessage: (m) => netMsgRef.current?.(m),
+        onPeerLeft: () => netPeerLeftRef.current?.(),
+        onError: (kind) => {
+          netRef.current?.destroy();
+          netRef.current = null;
+          if (kind === "code-taken" && attempts < 3) {
+            attempts += 1;
+            tryHost();
+            return;
+          }
+          setNetState({ ...NET_IDLE, status: "error", error: kind });
+        },
+      });
+      netRef.current = net;
+      net.host(randomCode());
+    };
+    tryHost();
+  }, [teardownNet]);
+
+  const joinOnline = useCallback(
+    (rawCode) => {
+      const code = normalizeCode(rawCode);
+      if (!code) {
+        setNetState({ ...NET_IDLE, status: "error", error: "bad-code" });
+        return;
+      }
+      teardownNet();
+      setNetState({ ...NET_IDLE, status: "connecting", code });
+      const net = createNet({
+        onWaiting: () => {},
+        onConnected: () =>
+          setNetState((n) => ({ ...n, status: "connected", error: null })),
+        onMessage: (m) => netMsgRef.current?.(m),
+        onPeerLeft: () => netPeerLeftRef.current?.(),
+        onError: (kind) => {
+          netRef.current?.destroy();
+          netRef.current = null;
+          setNetState({ ...NET_IDLE, status: "error", error: kind });
+        },
+      });
+      netRef.current = net;
+      net.join(code);
+    },
+    [teardownNet]
+  );
+
+  const cancelOnline = useCallback(() => {
+    netRef.current?.send({ t: "bye" });
+    teardownNet();
+    setNetState(NET_IDLE);
+  }, [teardownNet]);
 
   const initRace = useCallback(
     (round, mode, difficultyId, contentId) => {
@@ -457,8 +587,18 @@ export default function useGame() {
       if (isBattleMode(mode)) {
         const d = dataRef.current;
         d.battle =
-          mode === "pvp" ? createPvpBattle() : createBattle(difficultyId);
-        d.battleStyle = battleStyle;
+          mode === "pvp"
+            ? createPvpBattle()
+            : mode === "online"
+              ? createOnlineBattle()
+              : createBattle(difficultyId);
+        // Online matches use the host's spell style for both players
+        d.battleStyle =
+          mode === "online" ? (netStyleRef.current ?? battleStyle) : battleStyle;
+        d.opponentLeft = false;
+        d.lastNetSend = 0;
+        localRematchRef.current = false;
+        remoteRematchRef.current = false;
         d.selectedSpell = null;
         d.answers = [];
         d.castSynopsis = null;

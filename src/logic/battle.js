@@ -166,6 +166,27 @@ export function createPvpBattle() {
   };
 }
 
+// Internet duel: both wizards cast at once. The remote player's HP, shield,
+// and poison are authoritative on their machine and mirrored here via
+// network state messages; we only simulate our own side.
+export function createOnlineBattle() {
+  return {
+    pvp: false,
+    online: true,
+    playerHp: 100,
+    playerMax: 100,
+    playerShield: 0,
+    playerPoison: null,
+    enemyHp: 100,
+    enemyMax: 100,
+    enemyShield: 0,
+    enemyPoison: null,
+    enemy: { casting: null },
+    over: false,
+    winner: null,
+  };
+}
+
 const OTHER_SIDE = { player: "enemy", enemy: "player" };
 
 function damageSide(b, side, amount) {
@@ -182,7 +203,9 @@ function settle(b) {
     b.playerHp = 0;
     b.over = true;
     b.winner = "enemy";
-  } else if (b.enemyHp <= 0) {
+  } else if (!b.online && b.enemyHp <= 0) {
+    // Online: the opponent's death is announced by their machine, not
+    // inferred from our optimistic mirror of their HP
     b.enemyHp = 0;
     b.over = true;
     b.winner = "player";
@@ -233,8 +256,8 @@ export function tickBattle(b, dt, random = Math.random, style = "words") {
   if (b.over) return events;
   tickPoison(b, dt);
 
-  if (b.pvp) {
-    // No AI in PvP — real time only advances poison
+  if (b.pvp || b.online) {
+    // No AI in PvP or online duels — real time only advances poison
     settle(b);
     return events;
   }
@@ -265,6 +288,21 @@ export function tickBattle(b, dt, random = Math.random, style = "words") {
 
   settle(b);
   return events;
+}
+
+// A cast the online opponent made, landing on our own (authoritative) side.
+// Returns the damage actually dealt after our shield absorbs its share.
+export function applyRemoteCast(b, { kind, raw, perSecond, duration }) {
+  if (kind === "attack") {
+    const dealt = damageSide(b, "player", raw);
+    settle(b);
+    return dealt;
+  }
+  if (kind === "poison") {
+    b.playerPoison = { perSecond, left: duration };
+  }
+  // heal/shield only affect the caster — their state broadcast covers it
+  return 0;
 }
 
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -303,6 +341,11 @@ export function applyCast(b, spellId, metrics, side = "player") {
     type: spell.type,
     amount:
       spell.type === "attack" || spell.type === "poison" ? dealt : amount,
+    // Pre-shield damage and poison parameters, so a remote opponent can
+    // apply the cast against their own authoritative state
+    raw: amount,
+    perSecond: spell.type === "poison" ? spell.power * mult : 0,
+    duration: spell.duration ?? 0,
     crit,
     wpm: Math.round(wpm),
   };

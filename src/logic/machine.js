@@ -13,9 +13,15 @@ export const MODES = {
   },
   pvp: {
     id: "pvp",
-    label: "PvP Duel",
+    label: "Local PvP",
     desc: "Two players, one keyboard — take turns casting",
     startLabel: "Start PvP",
+  },
+  online: {
+    id: "online",
+    label: "Online Duel",
+    desc: "Battle a friend over the internet",
+    startLabel: "Create Room",
   },
   endless: {
     id: "endless",
