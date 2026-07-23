@@ -118,8 +118,23 @@ export default function AccountMenu({
   const rootRef = useRef(null);
 
   const active = open || panel != null;
+  const prevActive = useRef(active);
   useEffect(() => {
     onOverlayChange?.(active);
+    // A body flag the global key handler checks — cleared the instant the
+    // panel closes, independent of the modal's exit animation
+    if (active) document.body.dataset.menuLock = "1";
+    else delete document.body.dataset.menuLock;
+    // On close, drop focus off the (still exit-animating) menu controls so
+    // Enter/arrow keys go straight back to the game menu
+    if (prevActive.current && !active) {
+      const el = document.activeElement;
+      if (el && rootRef.current?.contains(el) && el.blur) el.blur();
+    }
+    prevActive.current = active;
+    return () => {
+      delete document.body.dataset.menuLock;
+    };
   }, [active, onOverlayChange]);
 
   // Close the dropdown on an outside click or Escape
