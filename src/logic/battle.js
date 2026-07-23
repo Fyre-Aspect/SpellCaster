@@ -147,6 +147,50 @@ export function createBattle(difficultyId, random = Math.random) {
   };
 }
 
+// A campaign duel: the enemy's stats come from the level's foe rather than a
+// difficulty tier. `tier` is carried on the battle so the AI reads it directly.
+export function createCampaignBattle(foe, random = Math.random) {
+  return {
+    pvp: false,
+    campaign: true,
+    difficulty: null,
+    tier: {
+      hp: foe.hp,
+      damageMult: foe.damageMult,
+      idleSeconds: foe.idleSeconds,
+      castWpm: foe.castWpm,
+    },
+    enemyName: foe.name,
+    playerHp: 100,
+    playerMax: 100,
+    playerShield: 0,
+    playerPoison: null,
+    enemyHp: foe.hp,
+    enemyMax: foe.hp,
+    enemyShield: 0,
+    enemyPoison: null,
+    enemy: { casting: null, idleLeft: 1.2 + random() },
+    over: false,
+    winner: null,
+  };
+}
+
+// Swap in the next foe of a horde without touching the player's side
+export function setCampaignFoe(b, foe, random = Math.random) {
+  b.tier = {
+    hp: foe.hp,
+    damageMult: foe.damageMult,
+    idleSeconds: foe.idleSeconds,
+    castWpm: foe.castWpm,
+  };
+  b.enemyName = foe.name;
+  b.enemyMax = foe.hp;
+  b.enemyHp = foe.hp;
+  b.enemyShield = 0;
+  b.enemyPoison = null;
+  b.enemy = { casting: null, idleLeft: 1.0 + random() };
+}
+
 // Two wizards, one keyboard: identical stats, alternating casts
 export function createPvpBattle() {
   return {
@@ -262,7 +306,7 @@ export function tickBattle(b, dt, random = Math.random, style = "words") {
     return events;
   }
 
-  const tier = ENEMY_TIERS[b.difficulty] ?? ENEMY_TIERS.medium;
+  const tier = b.tier ?? ENEMY_TIERS[b.difficulty] ?? ENEMY_TIERS.medium;
   const enemy = b.enemy;
   if (enemy.casting) {
     enemy.casting.left -= dt;
@@ -277,9 +321,9 @@ export function tickBattle(b, dt, random = Math.random, style = "words") {
     if (enemy.idleLeft <= 0) {
       const spellId = pickEnemySpell(b, random);
       const { text } = incantationFor(spellId, style, random);
-      const cps = wpmToCharsPerSecond(
-        (BOT_DIFFICULTIES[b.difficulty] ?? BOT_DIFFICULTIES.medium).baseWpm
-      );
+      const castWpm =
+        tier.castWpm ?? (BOT_DIFFICULTIES[b.difficulty] ?? BOT_DIFFICULTIES.medium).baseWpm;
+      const cps = wpmToCharsPerSecond(castWpm);
       const total = Math.max(1.2, text.length / cps);
       enemy.casting = { spellId, total, left: total };
       events.push({ type: "enemyStart", spellId });

@@ -53,6 +53,8 @@ export default function App() {
             busy={auth.busy}
             muted={game.muted}
             onToggleMute={game.toggleMute}
+            campaign={game.campaign}
+            onStartCampaignLevel={game.startCampaignLevel}
           />
         ) : game.mode === "battle" ||
           game.mode === "pvp" ||
@@ -87,6 +89,7 @@ export default function App() {
             summary={game.summary}
             net={game.net}
             onRaceAgain={game.raceAgain}
+            onCampaignNext={game.campaignNext}
             onMenu={game.toMenu}
           />
         )}

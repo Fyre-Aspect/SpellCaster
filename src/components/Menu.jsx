@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { MODES } from "../logic/machine.js";
+import { MODES, MODE_GROUPS } from "../logic/machine.js";
 import { BATTLE_STYLES } from "../logic/battle.js";
 import { BOT_DIFFICULTIES, DIFFICULTY_ORDER } from "../logic/race.js";
 import { CONTENT_TYPES } from "../data/challenges.js";
+import { CAMPAIGN } from "../data/campaign.js";
 import Lobby from "./Lobby.jsx";
 import ModeCarousel from "./ModeCarousel.jsx";
 import AccountMenu from "./AccountMenu.jsx";
+import CampaignMap from "./CampaignMap.jsx";
 
 const CONTENT_HINTS = {
   blanks: null,
@@ -15,9 +17,7 @@ const CONTENT_HINTS = {
 };
 
 function bestText(mode, best) {
-  if (mode === "pvp") {
-    return "Winner takes the bragging rights!";
-  }
+  if (mode === "pvp") return "Winner takes the bragging rights!";
   if (!best) return "No record yet — set one!";
   if (mode === "race") {
     return `Best win: speed ${Math.round(best.wpm)} in ${best.timeSeconds.toFixed(1)}s`;
@@ -62,29 +62,55 @@ export default function Menu({
   busy,
   muted,
   onToggleMute,
+  campaign,
+  onStartCampaignLevel,
 }) {
   const reduced = useReducedMotion();
   const isOnline = selectedMode === "online";
+  const isCampaign = selectedMode === "campaign";
   const isBattle = selectedMode === "battle" || selectedMode === "pvp" || isOnline;
+  const isBattleLike = isBattle || isCampaign;
+  const showDifficulty = selectedMode === "race" || selectedMode === "battle";
 
-  // Rows the arrow keys can rove through, top to bottom
+  // Modes split into Solo / Versus; the active tab follows the selected mode
+  const activeTab = MODES[selectedMode]?.group ?? "solo";
+  const tabModes = useMemo(
+    () => Object.values(MODES).filter((m) => m.group === activeTab),
+    [activeTab]
+  );
+  const tabModeIds = tabModes.map((m) => m.id);
+
+  const selectTab = (groupId) => {
+    if (groupId === activeTab) return;
+    const first = Object.values(MODES).find((m) => m.group === groupId);
+    if (first) onSelectMode(first.id);
+  };
+
+  const [campaignOpen, setCampaignOpen] = useState(false);
+  const [accountActive, setAccountActive] = useState(false);
+  const overlayOpenRef = useRef(false);
+  overlayOpenRef.current = campaignOpen || accountActive;
+
+  // Rows the arrow keys rove through, top to bottom
   const rows = useMemo(() => {
     const r = ["modes"];
-    if (selectedMode === "race" || selectedMode === "battle") r.push("difficulty");
+    if (showDifficulty) r.push("difficulty");
     r.push("options");
     if (!isOnline) r.push("start");
     return r;
-  }, [selectedMode, isOnline]);
+  }, [showDifficulty, isOnline]);
 
   const [activeIdx, setActiveIdx] = useState(0);
-  const overlayOpenRef = useRef(false);
-
   useEffect(() => {
     setActiveIdx((i) => Math.min(i, rows.length - 1));
   }, [rows]);
-
   const activeRow = rows[activeIdx];
   const rowClass = (id) => `nav-row${activeRow === id ? " nav-active" : ""}`;
+
+  const openCampaign = () => {
+    if (!isCampaign) onSelectMode("campaign");
+    setCampaignOpen(true);
+  };
 
   // Full keyboard navigation: up/down pick a row, left/right change its value
   useEffect(() => {
@@ -92,6 +118,11 @@ export default function Menu({
       if (overlayOpenRef.current) return;
       const tag = e.target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "Enter" && isCampaign) {
+        e.preventDefault();
+        setCampaignOpen(true);
+        return;
+      }
       if (e.key === "ArrowUp") {
         e.preventDefault();
         setActiveIdx((i) => Math.max(0, i - 1));
@@ -103,13 +134,13 @@ export default function Menu({
         const row = rows[activeIdx];
         if (row === "modes") {
           e.preventDefault();
-          onSelectMode(step(Object.keys(MODES), selectedMode, dir));
+          onSelectMode(step(tabModeIds, selectedMode, dir));
         } else if (row === "difficulty") {
           e.preventDefault();
           onSelectDifficulty(step(DIFFICULTY_ORDER, difficulty, dir));
         } else if (row === "options") {
           e.preventDefault();
-          if (isBattle) {
+          if (isBattleLike) {
             onSelectBattleStyle(step(Object.keys(BATTLE_STYLES), battleStyle, dir));
           } else {
             onSelectContent(step(Object.keys(CONTENT_TYPES), content, dir));
@@ -123,15 +154,21 @@ export default function Menu({
     rows,
     activeIdx,
     selectedMode,
+    tabModeIds,
     difficulty,
     content,
     battleStyle,
-    isBattle,
+    isBattleLike,
+    isCampaign,
     onSelectMode,
     onSelectDifficulty,
     onSelectContent,
     onSelectBattleStyle,
   ]);
+
+  const clearedCount = campaign
+    ? Object.values(campaign.cleared).filter((s) => s > 0).length
+    : 0;
 
   return (
     <motion.section
@@ -151,19 +188,45 @@ export default function Menu({
         onToggleMute={onToggleMute}
         showAnswers={showAnswers}
         onToggleAnswers={onToggleAnswers}
-        onOverlayChange={(open) => {
-          overlayOpenRef.current = open;
-        }}
+        onOverlayChange={setAccountActive}
       />
+
+      <button
+        type="button"
+        className="gold-chip gold-corner"
+        onClick={openCampaign}
+        title="Campaign gold"
+      >
+        🪙 {campaign?.gold ?? 0}
+      </button>
 
       <h1 className="title">SPELLCASTER</h1>
       <p className="tagline">Type spells. Outcast your rival.</p>
 
-      <div className={rowClass("modes")}>
-        <ModeCarousel selectedMode={selectedMode} onSelectMode={onSelectMode} />
+      <div className="mode-tabs" role="tablist">
+        {MODE_GROUPS.map((g) => (
+          <button
+            key={g.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === g.id}
+            className={`mode-tab ${activeTab === g.id ? "active" : ""}`}
+            onClick={() => selectTab(g.id)}
+          >
+            {g.label}
+          </button>
+        ))}
       </div>
 
-      {(selectedMode === "race" || selectedMode === "battle") && (
+      <div className={rowClass("modes")}>
+        <ModeCarousel
+          modes={tabModes}
+          selectedMode={selectedMode}
+          onSelectMode={onSelectMode}
+        />
+      </div>
+
+      {showDifficulty && (
         <div className={`option-group ${rowClass("difficulty")}`}>
           <span className="option-label">Difficulty</span>
           <div className="diff-row">
@@ -184,7 +247,7 @@ export default function Menu({
         </div>
       )}
 
-      {isBattle ? (
+      {isBattleLike ? (
         <div className={`option-group ${rowClass("options")}`}>
           <span className="option-label">Spell style</span>
           <div className="content-row">
@@ -229,6 +292,23 @@ export default function Menu({
             onCancel={onCancelOnline}
           />
         </>
+      ) : isCampaign ? (
+        <>
+          <div className="best-chip">
+            {clearedCount} / {CAMPAIGN.length} levels cleared
+            {campaign?.totalStars ? ` · ★ ${campaign.totalStars}` : ""}
+          </div>
+          <div className={rowClass("start")}>
+            <motion.button
+              className="btn btn-big"
+              onClick={() => setCampaignOpen(true)}
+              whileHover={reduced ? undefined : { scale: 1.05, rotate: -1.5 }}
+              whileTap={reduced ? undefined : { scale: 0.95 }}
+            >
+              Open Campaign
+            </motion.button>
+          </div>
+        </>
       ) : (
         <>
           <div className="best-chip">{bestText(selectedMode, best)}</div>
@@ -246,21 +326,21 @@ export default function Menu({
       )}
 
       <ul className="hints">
-        {isBattle ? (
+        {isCampaign ? (
+          <>
+            <li>Beat each wizard to unlock the next — hordes throw several foes at you</li>
+            <li>Win to earn 🪙 gold and up to ★★★ · spend it in the shop (coming soon)</li>
+            <li>Arrow keys navigate · Enter opens the campaign · Esc pauses a duel</li>
+          </>
+        ) : isBattle ? (
           <>
             {selectedMode === "pvp" && (
-              <li>
-                Grab a friend! You take turns &mdash; pick a spell, type it,
-                then pass the keyboard
-              </li>
+              <li>Grab a friend! Take turns — pick a spell, type it, pass the keyboard</li>
             )}
             {isOnline && (
-              <li>
-                Duel a friend anywhere &mdash; both cast at once, first to drop
-                the other&apos;s HP wins
-              </li>
+              <li>Duel a friend anywhere — both cast at once, first to drop the other&apos;s HP wins</li>
             )}
-            <li>Pick spells with 1&ndash;5 &mdash; stronger spells take longer to type</li>
+            <li>Pick spells with 1&ndash;5 — stronger spells take longer to type</li>
             <li>
               {isOnline
                 ? "Arrow keys navigate · Esc leaves the duel"
@@ -280,6 +360,16 @@ export default function Menu({
           </>
         )}
       </ul>
+
+      <CampaignMap
+        open={campaignOpen}
+        campaign={campaign}
+        onStartLevel={(i) => {
+          setCampaignOpen(false);
+          onStartCampaignLevel(i);
+        }}
+        onClose={() => setCampaignOpen(false)}
+      />
     </motion.section>
   );
 }

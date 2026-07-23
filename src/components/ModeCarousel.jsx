@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { MODES } from "../logic/machine.js";
 
 export const MODE_ICONS = {
+  campaign: "🏆",
   race: "🏁",
   battle: "⚔️",
   pvp: "🎮",
@@ -13,8 +14,7 @@ export const MODE_ICONS = {
 // Scroll/swipe-through mode picker. The centred card is the selected mode;
 // arrows, dots, wheel and click all steer to a slide, and free scrolling
 // snaps to whichever card lands in the middle.
-export default function ModeCarousel({ selectedMode, onSelectMode }) {
-  const modes = Object.values(MODES);
+export default function ModeCarousel({ modes = Object.values(MODES), selectedMode, onSelectMode }) {
   const trackRef = useRef(null);
   const slideRefs = useRef({});
   const settleTimer = useRef(null);

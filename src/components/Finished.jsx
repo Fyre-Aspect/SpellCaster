@@ -1,7 +1,16 @@
 import { motion, useReducedMotion } from "motion/react";
 
-export default function Finished({ result, summary, net, onRaceAgain, onMenu }) {
+export default function Finished({
+  result,
+  summary,
+  net,
+  onRaceAgain,
+  onCampaignNext,
+  onMenu,
+}) {
   const reduced = useReducedMotion();
+  const camp = result.campaign ?? null;
+  const isCampaign = !!camp;
   const isRace = result.mode === "race";
   const isPvp = result.mode === "pvp";
   const isOnline = result.mode === "online";
@@ -9,7 +18,11 @@ export default function Finished({ result, summary, net, onRaceAgain, onMenu }) 
   const won =
     isPvp || ((isRace || isBattle) && result.winner === "player");
   const lost = (isRace || isBattle) && !won;
-  const title = isOnline
+  const title = isCampaign
+    ? won
+      ? "Level Cleared!"
+      : "Defeated!"
+    : isOnline
     ? result.opponentLeft
       ? "Opponent left — you win!"
       : won

@@ -1,33 +1,31 @@
 export const MODES = {
+  campaign: {
+    id: "campaign",
+    label: "Campaign",
+    desc: "Climb the ladder — beat wizards, earn gold",
+    startLabel: "Open Campaign",
+    group: "solo",
+  },
   race: {
     id: "race",
     label: "Race the Bot",
     desc: "Beat the bot to the finish line",
     startLabel: "Start Race",
+    group: "solo",
   },
   battle: {
     id: "battle",
-    label: "Spell Battle",
-    desc: "Fight a rival wizard — type to cast spells",
+    label: "Quick Duel",
+    desc: "One-off fight against an AI wizard",
     startLabel: "Start Duel",
-  },
-  pvp: {
-    id: "pvp",
-    label: "Local PvP",
-    desc: "Two players, one keyboard — take turns casting",
-    startLabel: "Start PvP",
-  },
-  online: {
-    id: "online",
-    label: "Online Duel",
-    desc: "Battle a friend over the internet",
-    startLabel: "Create Room",
+    group: "solo",
   },
   endless: {
     id: "endless",
     label: "Endless Solo",
     desc: "Chill run — type as long as you like",
     startLabel: "Start Run",
+    group: "solo",
   },
   trial: {
     id: "trial",
@@ -35,8 +33,28 @@ export const MODES = {
     desc: "60 seconds, score as much as you can",
     startLabel: "Start Trial",
     timeLimit: 60,
+    group: "solo",
+  },
+  pvp: {
+    id: "pvp",
+    label: "Local PvP",
+    desc: "Two players, one keyboard — take turns casting",
+    startLabel: "Start PvP",
+    group: "versus",
+  },
+  online: {
+    id: "online",
+    label: "Online Duel",
+    desc: "Battle a friend over the internet",
+    startLabel: "Create Room",
+    group: "versus",
   },
 };
+
+export const MODE_GROUPS = [
+  { id: "solo", label: "Solo" },
+  { id: "versus", label: "Versus" },
+];
 
 export const initialState = { screen: "landing", mode: "race", round: 1, result: null };
 

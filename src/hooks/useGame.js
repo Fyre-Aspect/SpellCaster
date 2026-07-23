@@ -19,11 +19,19 @@ import {
   applyCast,
   applyRemoteCast,
   createBattle,
+  createCampaignBattle,
   createOnlineBattle,
   createPvpBattle,
   incantationFor,
+  setCampaignFoe,
   tickBattle,
 } from "../logic/battle.js";
+import { CAMPAIGN } from "../data/campaign.js";
+import {
+  loadCampaign,
+  recordCampaignWin,
+  starsFor,
+} from "../logic/campaignStore.js";
 import { createNet, normalizeCode, randomCode } from "../logic/net.js";
 import { aiPoolCount, refreshAiPool } from "../data/aiPool.js";
 import {
@@ -211,6 +219,8 @@ export default function useGame() {
   const [transition, setTransition] = useState(false);
   const transitionActiveRef = useRef(false);
   const transitionActionRef = useRef(null);
+  const [campaignBump, setCampaignBump] = useState(0);
+  const campaignRef = useRef(null); // { index } while a campaign level is active
   const dataRef = useRef(null);
   const comboTimerRef = useRef(null);
   const castPopTimerRef = useRef(null);
@@ -226,6 +236,7 @@ export default function useGame() {
 
   const history = useMemo(() => loadHistory(), [historyBump]);
   const summary = useMemo(() => summarizeHistory(history), [history]);
+  const campaign = useMemo(() => loadCampaign(), [campaignBump]);
 
   const challenge = useMemo(
     () => challengeForRound(state.round, content),
@@ -298,6 +309,15 @@ export default function useGame() {
             castSeq: d.castSeq,
             lastCast: d.lastCast,
             lastEnemyCast: d.lastEnemyCast,
+            enemyName: d.battle.enemyName ?? null,
+            campaign: d.campaign
+              ? {
+                  levelName: d.campaign.level.name,
+                  icon: d.campaign.level.icon,
+                  foeIndex: d.campaign.foeIndex,
+                  foeCount: d.campaign.foes.length,
+                }
+              : null,
           }
         : null,
     });
@@ -416,6 +436,29 @@ export default function useGame() {
         misses: collectMisses(d),
         blanksTotal: d.blankLog.length,
       };
+      // Campaign wins pay gold and stars and unlock the next level
+      if (d.campaign) {
+        const won = winner === "player";
+        const hpFrac =
+          d.battle.playerMax > 0
+            ? Math.max(0, d.battle.playerHp) / d.battle.playerMax
+            : 0;
+        const stars = won ? starsFor(hpFrac, stats.accuracy) : 0;
+        const reward = won ? recordCampaignWin(d.campaign.index, stars) : null;
+        setCampaignBump((b) => b + 1);
+        stats.campaign = {
+          index: d.campaign.index,
+          levelId: d.campaign.level.id,
+          levelName: d.campaign.level.name,
+          icon: d.campaign.level.icon,
+          won,
+          stars,
+          earned: reward?.earned ?? 0,
+          gold: reward?.gold ?? loadCampaign().gold,
+          firstClear: reward?.firstClear ?? false,
+          hasNext: d.campaign.index < CAMPAIGN.length - 1,
+        };
+      }
       recordRunFrom(d, stats);
       setHistoryBump((b) => b + 1);
       if (d.mode === "online" && winner === "enemy" && !d.opponentLeft) {
@@ -423,7 +466,10 @@ export default function useGame() {
         // authoritative, so they wait for this announcement
         netRef.current?.send({ t: "gameover" });
       }
-      if (d.mode === "pvp") {
+      if (d.campaign) {
+        if (winner === "player") winFanfare();
+        else loseSlide();
+      } else if (d.mode === "pvp") {
         // Someone in the room won either way
         winFanfare();
       } else if (d.mode === "online") {
@@ -446,6 +492,38 @@ export default function useGame() {
     },
     [syncLive]
   );
+
+  // In a horde level, a downed foe is replaced by the next one instead of
+  // ending the duel. Returns true when the battle is truly over.
+  const advanceOrFinish = useCallback(() => {
+    const d = dataRef.current;
+    if (!d?.battle?.over) return false;
+    const camp = d.campaign;
+    if (
+      camp &&
+      d.battle.winner === "player" &&
+      camp.foeIndex < camp.foes.length - 1
+    ) {
+      camp.foeIndex += 1;
+      const foe = camp.foes[camp.foeIndex];
+      const healed = Math.round(d.battle.playerMax * 0.15);
+      d.battle.playerHp = Math.min(d.battle.playerMax, d.battle.playerHp + healed);
+      setCampaignFoe(d.battle, foe);
+      d.battle.over = false;
+      d.battle.winner = null;
+      // Fresh pick against the new foe
+      d.selectedSpell = null;
+      d.answers = [];
+      d.castSynopsis = null;
+      d.blankIndex = 0;
+      d.typed = "";
+      goBeep();
+      syncLive();
+      return false;
+    }
+    finishBattle(d.battle.winner);
+    return true;
+  }, [finishBattle, syncLive]);
 
   const teardownNet = useCallback(() => {
     netRef.current?.destroy();
@@ -594,12 +672,20 @@ export default function useGame() {
       };
       if (isBattleMode(mode)) {
         const d = dataRef.current;
-        d.battle =
-          mode === "pvp"
-            ? createPvpBattle()
-            : mode === "online"
-              ? createOnlineBattle()
-              : createBattle(difficultyId);
+        const camp = mode === "battle" ? campaignRef.current : null;
+        if (camp && CAMPAIGN[camp.index]) {
+          const level = CAMPAIGN[camp.index];
+          d.campaign = { index: camp.index, level, foeIndex: 0, foes: level.foes };
+          d.battle = createCampaignBattle(level.foes[0]);
+        } else {
+          d.campaign = null;
+          d.battle =
+            mode === "pvp"
+              ? createPvpBattle()
+              : mode === "online"
+                ? createOnlineBattle()
+                : createBattle(difficultyId);
+        }
         // Online matches use the host's spell style for both players
         d.battleStyle =
           mode === "online" ? (netStyleRef.current ?? battleStyle) : battleStyle;
@@ -723,10 +809,7 @@ export default function useGame() {
           }
         }, POP_VISIBLE_MS);
         goBeep();
-        if (d.battle.over) {
-          finishBattle(d.battle.winner);
-          return true;
-        }
+        if (d.battle.over) return advanceOrFinish();
         return false;
       }
       d.blankIndex += 1;
@@ -739,7 +822,7 @@ export default function useGame() {
       }
       return false;
     },
-    [advanceSnippet, finishRace, finishBattle, syncLive]
+    [advanceSnippet, finishRace, advanceOrFinish, syncLive]
   );
 
   const typeChar = useCallback(
@@ -1113,7 +1196,7 @@ export default function useGame() {
               }, POP_VISIBLE_MS);
             }
           }
-          if (d.battle.over) finishBattle(d.battle.winner);
+          if (d.battle.over) advanceOrFinish();
           else {
             if (d.mode === "online") sendNetState();
             syncLive();
@@ -1128,7 +1211,15 @@ export default function useGame() {
     };
     rafId = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(rafId);
-  }, [state.screen, finishRace, finishRun, finishBattle, syncLive, sendNetState]);
+  }, [
+    state.screen,
+    finishRace,
+    finishRun,
+    finishBattle,
+    advanceOrFinish,
+    syncLive,
+    sendNetState,
+  ]);
 
   useEffect(() => {
     function onKeyDown(e) {
@@ -1145,9 +1236,15 @@ export default function useGame() {
       if (state.screen === "menu") {
         // Don't start while the account dropdown/modal is capturing input
         if (document.body.dataset.menuLock) return;
-        // Online goes through the lobby, not a plain Enter-to-start
-        if (e.key === "Enter" && !onButton && selectedMode !== "online") {
+        // Online (lobby) and campaign (level map) don't plain Enter-to-start
+        if (
+          e.key === "Enter" &&
+          !onButton &&
+          selectedMode !== "online" &&
+          selectedMode !== "campaign"
+        ) {
           e.preventDefault();
+          campaignRef.current = null;
           playTransition(() => dispatch({ type: "START", mode: selectedMode }));
         }
         return;
@@ -1348,8 +1445,24 @@ export default function useGame() {
       uiClick();
       playTransition(() => dispatch({ type: "ENTER" }));
     },
-    start: () =>
-      playTransition(() => dispatch({ type: "START", mode: selectedMode })),
+    campaign,
+    start: () => {
+      campaignRef.current = null;
+      playTransition(() => dispatch({ type: "START", mode: selectedMode }));
+    },
+    startCampaignLevel: (index) => {
+      if (!Number.isInteger(index) || index < 0 || index >= CAMPAIGN.length) {
+        return;
+      }
+      campaignRef.current = { index };
+      playTransition(() => dispatch({ type: "START", mode: "battle" }));
+    },
+    campaignNext: () => {
+      const cur = state.result?.campaign?.index;
+      if (cur == null || cur + 1 >= CAMPAIGN.length) return;
+      campaignRef.current = { index: cur + 1 };
+      playTransition(() => dispatch({ type: "RACE_AGAIN", round: 1 }));
+    },
     raceAgain: () => {
       if (state.mode === "online") {
         requestOnlineRematch();
