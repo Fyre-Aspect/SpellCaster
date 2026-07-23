@@ -1143,6 +1143,8 @@ export default function useGame() {
         return;
       }
       if (state.screen === "menu") {
+        // Don't start while the account dropdown/modal is capturing input
+        if (document.querySelector(".account-dropdown, .account-modal")) return;
         // Online goes through the lobby, not a plain Enter-to-start
         if (e.key === "Enter" && !onButton && selectedMode !== "online") {
           e.preventDefault();

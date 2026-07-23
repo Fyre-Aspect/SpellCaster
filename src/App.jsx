@@ -41,7 +41,6 @@ export default function App() {
             onToggleAnswers={game.toggleAnswers}
             onStart={game.start}
             summary={game.summary}
-            aiCount={game.aiCount}
             battleStyle={game.battleStyle}
             onSelectBattleStyle={game.selectBattleStyle}
             net={game.net}
@@ -49,7 +48,9 @@ export default function App() {
             onJoinOnline={game.joinOnline}
             onCancelOnline={game.cancelOnline}
             user={auth.user}
+            onSignIn={auth.signInGoogle}
             onSignOut={auth.logout}
+            busy={auth.busy}
             muted={game.muted}
             onToggleMute={game.toggleMute}
           />
