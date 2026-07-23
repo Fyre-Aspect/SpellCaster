@@ -126,7 +126,15 @@ export default function BattleScreen({ game }) {
           </div>
           <div className="hp-side right">
             <HpCard
-              label={pvp ? "🧙 Player 2" : online ? "🧙 Opponent" : "🧛 Rival"}
+              label={
+                pvp
+                  ? "🧙 Player 2"
+                  : online
+                    ? "🧙 Opponent"
+                    : b.enemyName
+                      ? `🧙 ${b.enemyName}`
+                      : "🧛 Rival"
+              }
               hp={b.enemyHp}
               max={b.enemyMax}
               tone="bot"
@@ -134,6 +142,11 @@ export default function BattleScreen({ game }) {
               poisonLeft={b.enemyPoisonLeft}
               active={pvp && b.turn === "enemy" && !finished}
             />
+            {b.campaign && b.campaign.foeCount > 1 && (
+              <div className="foe-counter">
+                Foe {b.campaign.foeIndex + 1} / {b.campaign.foeCount}
+              </div>
+            )}
             <CastPop cast={rightPop} side="right" reduced={reduced} />
           </div>
         </div>
@@ -148,7 +161,7 @@ export default function BattleScreen({ game }) {
         ) : enemySpell ? (
           <>
             <span>
-              ⚠️ {online ? "Opponent" : "Rival"} is casting{" "}
+              ⚠️ {online ? "Opponent" : (b.enemyName ?? "Rival")} is casting{" "}
               <strong>{enemySpell.name}</strong>
             </span>
             <div className="bar telegraph-bar">
@@ -160,7 +173,9 @@ export default function BattleScreen({ game }) {
           </>
         ) : (
           <span className="telegraph-idle">
-            {online ? "Cast fast — your opponent is too!" : "Rival is thinking…"}
+            {online
+              ? "Cast fast — your opponent is too!"
+              : `${b.enemyName ?? "Rival"} is thinking…`}
           </span>
         )}
       </div>

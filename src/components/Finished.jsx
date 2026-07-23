@@ -98,6 +98,32 @@ export default function Finished({
         }
       >
         <h2 className={`result-title ${lost ? "lose" : "win"}`}>{title}</h2>
+        {isCampaign && (
+          <div className="campaign-reward">
+            {won && (
+              <div className="reward-stars">
+                {[0, 1, 2].map((i) => (
+                  <motion.span
+                    key={i}
+                    className={`reward-star ${i < camp.stars ? "on" : ""}`}
+                    initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.3, rotate: -30 }}
+                    animate={reduced ? { opacity: 1 } : { opacity: 1, scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.15 + i * 0.12, type: "spring", stiffness: 300, damping: 14 }}
+                  >
+                    ★
+                  </motion.span>
+                ))}
+              </div>
+            )}
+            <div className="reward-gold">
+              <span className="reward-earned">🪙 +{camp.earned}</span>
+              <span className="reward-total">{camp.gold} total</span>
+            </div>
+            {won && camp.firstClear && (
+              <div className="reward-firstclear">✨ First clear bonus!</div>
+            )}
+          </div>
+        )}
         {result.newBest && (
           <motion.div
             className="new-best"
@@ -146,44 +172,75 @@ export default function Finished({
         ) : result.blanksTotal > 0 ? (
           <p className="miss-flawless">Flawless — no trouble spots!</p>
         ) : null}
-        <div className="result-actions">
-          {!peerGone && (
-            <motion.button
-              className="btn btn-big"
-              autoFocus
-              disabled={rematchWaiting}
+        {isCampaign ? (
+          <div className="result-actions">
+            {won && camp.hasNext && (
+              <motion.button
+                className="btn btn-big"
+                autoFocus
+                onClick={onCampaignNext}
+                whileHover={reduced ? undefined : { scale: 1.05 }}
+                whileTap={reduced ? undefined : { scale: 0.95 }}
+              >
+                Next Level
+              </motion.button>
+            )}
+            <button
+              type="button"
+              className={`btn ${won && camp.hasNext ? "btn-secondary" : "btn-big"}`}
+              autoFocus={!(won && camp.hasNext)}
               onClick={onRaceAgain}
-              whileHover={reduced || rematchWaiting ? undefined : { scale: 1.05 }}
-              whileTap={reduced || rematchWaiting ? undefined : { scale: 0.95 }}
             >
-              {isOnline
-                ? rematchWaiting
-                  ? "Waiting for opponent…"
-                  : "Rematch"
-                : isPvp
-                  ? "Rematch"
-                  : isBattle
-                    ? "Duel Again"
-                    : isRace
-                      ? "Race Again"
-                      : "Go Again"}
-            </motion.button>
-          )}
-          <button
-            type="button"
-            className={`btn ${peerGone ? "btn-big" : "btn-secondary"}`}
-            autoFocus={peerGone}
-            onClick={onMenu}
-          >
-            Menu
-          </button>
-        </div>
+              Retry
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={onMenu}>
+              Menu
+            </button>
+          </div>
+        ) : (
+          <div className="result-actions">
+            {!peerGone && (
+              <motion.button
+                className="btn btn-big"
+                autoFocus
+                disabled={rematchWaiting}
+                onClick={onRaceAgain}
+                whileHover={reduced || rematchWaiting ? undefined : { scale: 1.05 }}
+                whileTap={reduced || rematchWaiting ? undefined : { scale: 0.95 }}
+              >
+                {isOnline
+                  ? rematchWaiting
+                    ? "Waiting for opponent…"
+                    : "Rematch"
+                  : isPvp
+                    ? "Rematch"
+                    : isBattle
+                      ? "Duel Again"
+                      : isRace
+                        ? "Race Again"
+                        : "Go Again"}
+              </motion.button>
+            )}
+            <button
+              type="button"
+              className={`btn ${peerGone ? "btn-big" : "btn-secondary"}`}
+              autoFocus={peerGone}
+              onClick={onMenu}
+            >
+              Menu
+            </button>
+          </div>
+        )}
         <p className="enter-hint">
-          {isOnline
-            ? peerGone
-              ? "Esc for menu"
-              : "Rematch needs both players · Esc for menu"
-            : "Enter to go again · Esc for menu"}
+          {isCampaign
+            ? won && camp.hasNext
+              ? "Enter for next level · Esc for menu"
+              : "Enter to retry · Esc for menu"
+            : isOnline
+              ? peerGone
+                ? "Esc for menu"
+                : "Rematch needs both players · Esc for menu"
+              : "Enter to go again · Esc for menu"}
         </p>
       </motion.div>
     </motion.div>

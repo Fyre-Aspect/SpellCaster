@@ -39,6 +39,7 @@ import {
   computeAccuracy,
   computeWpm,
   createBot,
+  wpmToCharsPerSecond,
 } from "../logic/race.js";
 import { gameReducer, initialState, MODES } from "../logic/machine.js";
 import { loadHistory, recordRun, summarizeHistory } from "../logic/stats.js";
@@ -255,12 +256,13 @@ export default function useGame() {
     const runCorrect = d.runChars + snippetCorrect;
     let playerProgress;
     if (d.mode === "race") {
-      const effective = Math.max(0, snippetCorrect - d.penaltyChars);
-      playerProgress = Math.min(1, effective / d.total);
+      // Progress spans the whole multi-snippet sprint, not one snippet
+      const effective = Math.max(0, runCorrect - d.penaltyChars);
+      playerProgress = Math.min(1, effective / d.raceTarget);
     } else {
       playerProgress = Math.min(1, snippetCorrect / d.total);
     }
-    let botProgress = d.mode === "race" ? Math.min(1, d.botChars / d.total) : 0;
+    let botProgress = d.mode === "race" ? Math.min(1, d.botChars / d.raceTarget) : 0;
     if (d.finished && d.winner === "player") playerProgress = 1;
     if (d.finished && d.winner === "bot") botProgress = 1;
     setLive({
@@ -331,6 +333,7 @@ export default function useGame() {
       d.winner = winner;
       const expected = d.answers[d.blankIndex] ?? "";
       const typedCorrect =
+        d.runChars +
         d.completedChars +
         correctCharCount(d.typed, expected, maskFor(d, expected));
       const stats = {
@@ -669,7 +672,15 @@ export default function useGame() {
         finished: false,
         winner: null,
         battle: null,
+        raceTarget: 0,
       };
+      if (mode === "race") {
+        // A race is a sprint to a shared distance sized so the bot would
+        // finish in ~45s — long enough to feel like a real race (30–60s),
+        // chaining snippets as needed to cover it.
+        const botCps = wpmToCharsPerSecond(BOT_DIFFICULTIES[difficultyId].baseWpm);
+        dataRef.current.raceTarget = Math.min(320, Math.max(120, Math.round(botCps * 45)));
+      }
       if (isBattleMode(mode)) {
         const d = dataRef.current;
         const camp = mode === "battle" ? campaignRef.current : null;
@@ -813,11 +824,17 @@ export default function useGame() {
         return false;
       }
       d.blankIndex += 1;
-      if (d.blankIndex >= d.answers.length) {
-        if (d.mode === "race") {
+      if (d.mode === "race") {
+        // Reached the finish distance? win. Otherwise keep the sprint going,
+        // loading the next snippet when this one runs out of blanks.
+        if (d.runChars + d.completedChars >= d.raceTarget) {
           finishRace("player");
           return true;
         }
+        if (d.blankIndex >= d.answers.length) advanceSnippet(d);
+        return false;
+      }
+      if (d.blankIndex >= d.answers.length) {
         advanceSnippet(d);
       }
       return false;
@@ -1152,7 +1169,7 @@ export default function useGame() {
         d.elapsed += dt;
         if (d.mode === "race") {
           d.botChars += d.bot.tick(dt);
-          if (d.botChars >= d.total) finishRace("bot");
+          if (d.botChars >= d.raceTarget) finishRace("bot");
           else syncLive();
         } else if (isBattleMode(d.mode)) {
           // Watchdog: opponent stopped broadcasting → treat as a disconnect

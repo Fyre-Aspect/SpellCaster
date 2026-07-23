@@ -1314,6 +1314,357 @@ button {
   box-shadow: 0 0 0 3px rgba(47, 111, 228, 0.5);
 }
 
+/* --- Solo / Versus tabs --- */
+.mode-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  background: var(--panel);
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.mode-tab {
+  font-family: var(--font-comic);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink-dim);
+  background: none;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 26px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.mode-tab.active {
+  background: var(--yellow);
+  color: var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.mode-tab:hover:not(.active) {
+  color: var(--ink);
+}
+
+.mode-tab:focus-visible {
+  outline: 3px dashed var(--blue);
+  outline-offset: 2px;
+}
+
+/* --- Gold --- */
+.gold-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-comic);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+  background: #fff2bf;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  padding: 5px 14px;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.gold-corner {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 6;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.gold-corner:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.gold-corner:focus-visible {
+  outline: 3px dashed var(--blue);
+  outline-offset: 3px;
+}
+
+/* --- Campaign map --- */
+.campaign-modal {
+  background: rgba(28, 28, 40, 0.5);
+  backdrop-filter: blur(3px);
+  z-index: 60;
+  padding: 20px;
+}
+
+.campaign-card {
+  width: min(560px, 94vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--panel);
+  border: 4px solid var(--ink);
+  border-radius: 20px;
+  padding: 20px 22px;
+  box-shadow: 8px 8px 0 var(--ink);
+}
+
+.campaign-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.campaign-title {
+  margin: 0;
+  font-family: var(--font-comic);
+  font-size: 26px;
+  font-weight: 900;
+  color: var(--ink);
+  transform: rotate(-1deg);
+}
+
+.campaign-sub {
+  margin: 3px 0 0;
+  font-family: var(--font-comic);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-dim);
+}
+
+.campaign-head-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lvl-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.lvl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  font-family: var(--font-comic);
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  padding: 10px 14px;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 var(--ink);
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    background 0.12s ease;
+}
+
+.lvl-row:hover:not(:disabled) {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 var(--ink);
+  background: #fff8e0;
+}
+
+.lvl-row.next {
+  border-color: var(--blue);
+  box-shadow:
+    3px 3px 0 var(--ink),
+    0 0 0 3px rgba(47, 111, 228, 0.4);
+}
+
+.lvl-row.done {
+  background: rgba(6, 214, 160, 0.12);
+}
+
+.lvl-row.locked {
+  opacity: 0.55;
+  cursor: default;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.lvl-index {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 900;
+  color: #fffdf5;
+  background: var(--ink);
+  border-radius: 50%;
+}
+
+.lvl-icon {
+  font-size: 26px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.lvl-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.lvl-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.lvl-kind {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  padding: 0 7px;
+}
+
+.lvl-kind.boss {
+  background: var(--red);
+  color: #fffdf5;
+}
+
+.lvl-kind.horde {
+  background: var(--blue);
+  color: #fffdf5;
+}
+
+.lvl-sub {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lvl-right {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.lvl-cta {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--blue);
+}
+
+.lvl-reward {
+  font-family: var(--font-comic);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-dim);
+}
+
+.lvl-stars {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.lvl-star {
+  font-size: 16px;
+  color: rgba(28, 28, 40, 0.18);
+}
+
+.lvl-star.on {
+  color: var(--yellow);
+  -webkit-text-stroke: 1px var(--ink);
+}
+
+/* Horde foe counter in battle */
+.foe-counter {
+  margin-top: 6px;
+  align-self: flex-start;
+  font-family: var(--font-comic);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #fffdf5;
+  background: var(--bot);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  padding: 2px 10px;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+/* Campaign rewards on the finish screen */
+.campaign-reward {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.reward-stars {
+  display: flex;
+  gap: 10px;
+}
+
+.reward-star {
+  font-size: 40px;
+  line-height: 1;
+  color: rgba(28, 28, 40, 0.16);
+  -webkit-text-stroke: 2px rgba(28, 28, 40, 0.25);
+}
+
+.reward-star.on {
+  color: var(--yellow);
+  -webkit-text-stroke: 2px var(--ink);
+}
+
+.reward-gold {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: var(--font-comic);
+}
+
+.reward-earned {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.reward-total {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-dim);
+}
+
+.reward-firstclear {
+  font-family: var(--font-comic);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--green-dark);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mote {
     display: none;
