@@ -245,6 +245,207 @@ button {
   text-align: center;
 }
 
+/* --- Mode carousel (scroll / swipe-through picker) --- */
+.mode-carousel {
+  --slide-w: min(300px, 78vw);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 6px;
+  row-gap: 10px;
+  width: min(600px, 94vw);
+}
+
+.carousel-arrow {
+  grid-row: 1;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1;
+  padding-bottom: 4px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 var(--ink);
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    opacity 0.12s ease;
+}
+
+.carousel-arrow.left {
+  grid-column: 1;
+}
+
+.carousel-arrow.right {
+  grid-column: 3;
+}
+
+.carousel-arrow:hover:not(:disabled) {
+  background: var(--yellow);
+  transform: translateY(-2px);
+  box-shadow: 4px 5px 0 var(--ink);
+}
+
+.carousel-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.carousel-arrow:focus-visible {
+  outline: 3px dashed var(--blue);
+  outline-offset: 3px;
+}
+
+.mode-track {
+  position: relative;
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 10px calc((100% - var(--slide-w)) / 2);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 14%,
+    #000 86%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 14%,
+    #000 86%,
+    transparent 100%
+  );
+}
+
+.mode-track::-webkit-scrollbar {
+  display: none;
+}
+
+.mode-slide {
+  flex: 0 0 var(--slide-w);
+  scroll-snap-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-comic);
+  color: var(--ink);
+  background: var(--panel);
+  border: 3px solid var(--ink);
+  border-radius: 18px;
+  padding: 18px 20px 20px;
+  cursor: pointer;
+  box-shadow: 4px 4px 0 var(--ink);
+  opacity: 0.55;
+  transform: scale(0.88);
+  transition:
+    transform 0.22s ease,
+    opacity 0.22s ease,
+    background 0.18s ease;
+}
+
+.mode-slide:hover {
+  opacity: 0.85;
+}
+
+.mode-slide.selected {
+  opacity: 1;
+  transform: scale(1) rotate(-1deg);
+  background: var(--yellow);
+  box-shadow: 5px 6px 0 var(--ink);
+}
+
+.mode-slide-icon {
+  font-size: 40px;
+  line-height: 1;
+  filter: drop-shadow(2px 2px 0 rgba(28, 28, 40, 0.18));
+}
+
+.mode-slide-name {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+}
+
+.mode-slide-desc {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-dim);
+  text-align: center;
+  line-height: 1.35;
+  max-width: 26ch;
+}
+
+.carousel-dots {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: flex;
+  justify-content: center;
+  gap: 9px;
+}
+
+.carousel-dot {
+  width: 11px;
+  height: 11px;
+  padding: 0;
+  border: 2.5px solid var(--ink);
+  border-radius: 50%;
+  background: var(--panel);
+  cursor: pointer;
+  transition:
+    transform 0.14s ease,
+    background 0.14s ease;
+}
+
+.carousel-dot:hover {
+  transform: scale(1.2);
+}
+
+.carousel-dot.on {
+  background: var(--blue);
+  transform: scale(1.2);
+}
+
+.carousel-dot:focus-visible {
+  outline: 2px dashed var(--blue);
+  outline-offset: 2px;
+}
+
+/* Grouped secondary options (difficulty / style / challenge) */
+.option-group {
+  display: flex;
+  align-items: center;
+  gap: 10px 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.option-label {
+  font-family: var(--font-comic);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
 .mode-row {
   display: flex;
   gap: 14px;
@@ -1963,6 +2164,127 @@ button {
   }
 }
 
+/* --- Fireball spell-cast screen transition --- */
+.cast-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.cast-veil {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(255, 165, 60, 0.32),
+      rgba(120, 40, 20, 0.55) 30%,
+      rgba(18, 10, 26, 0.98) 62%
+    );
+}
+
+.cast-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 170px;
+  height: 170px;
+  margin: -85px 0 0 -85px;
+  border-radius: 50%;
+  border: 5px solid rgba(255, 200, 90, 0.85);
+  box-shadow:
+    0 0 34px rgba(255, 160, 60, 0.75),
+    inset 0 0 24px rgba(255, 180, 70, 0.5);
+  pointer-events: none;
+}
+
+.cast-fireball-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform;
+}
+
+.cast-fireball {
+  position: relative;
+  width: clamp(96px, 16vw, 148px);
+  height: clamp(96px, 16vw, 148px);
+  will-change: transform;
+}
+
+/* trailing flame beneath the rising ball */
+.cast-fireball::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 52%;
+  height: 165%;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    to top,
+    rgba(255, 90, 40, 0) 0%,
+    rgba(255, 120, 40, 0.55) 38%,
+    rgba(255, 190, 70, 0.9) 100%
+  );
+  filter: blur(7px);
+  border-radius: 46% 46% 40% 40%;
+  z-index: -2;
+}
+
+/* soft outer glow */
+.cast-fireball::after {
+  content: "";
+  position: absolute;
+  inset: -22%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 175, 65, 0.55),
+    rgba(255, 120, 40, 0) 70%
+  );
+  z-index: -1;
+}
+
+.cast-core {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid #2a140a;
+  background: radial-gradient(
+    circle at 50% 36%,
+    #fff8e0 0%,
+    #ffe45e 22%,
+    #ff9d2f 48%,
+    #ff5a2c 72%,
+    #e8342b 100%
+  );
+  box-shadow:
+    0 0 42px 12px rgba(255, 140, 45, 0.85),
+    0 0 96px 30px rgba(255, 90, 40, 0.5),
+    inset 0 -9px 18px rgba(170, 30, 20, 0.6),
+    inset 0 7px 15px rgba(255, 255, 205, 0.75);
+}
+
+.cast-ember {
+  position: absolute;
+  bottom: 18%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffe27a, #ff6a2c);
+  box-shadow: 0 0 9px rgba(255, 150, 55, 0.9);
+  pointer-events: none;
+}
+
+.cast-fireball.static {
+  filter: drop-shadow(0 0 26px rgba(255, 150, 55, 0.8));
+}
+
 @media (prefers-reduced-motion: reduce) {
   .caret {
     animation: none;
@@ -1982,6 +2304,15 @@ button {
 
   .mode-btn.selected:hover {
     transform: rotate(-1deg);
+  }
+
+  .mode-slide {
+    transition: opacity 0.2s ease;
+    transform: none;
+  }
+
+  .mode-slide.selected {
+    transform: none;
   }
 
   .spell-card {

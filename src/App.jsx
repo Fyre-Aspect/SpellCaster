@@ -8,6 +8,7 @@ import BattleScreen from "./components/BattleScreen.jsx";
 import Countdown from "./components/Countdown.jsx";
 import Finished from "./components/Finished.jsx";
 import PauseOverlay from "./components/PauseOverlay.jsx";
+import FireballTransition from "./components/FireballTransition.jsx";
 
 export default function App() {
   const game = useGame();
@@ -89,6 +90,12 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+      {game.transition && (
+        <FireballTransition
+          onMidpoint={game.transitionMid}
+          onDone={game.transitionDone}
+        />
+      )}
     </div>
   );
 }

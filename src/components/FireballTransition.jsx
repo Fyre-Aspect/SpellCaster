@@ -43,7 +43,7 @@ export default function FireballTransition({ onMidpoint, onDone }) {
   useEffect(() => {
     if (!reduced) return;
     fireMid();
-    const t = setTimeout(fireDone, 260);
+    const t = setTimeout(fireDone, 440);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduced]);

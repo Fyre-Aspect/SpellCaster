@@ -1138,7 +1138,7 @@ export default function useGame() {
       if (state.screen === "landing") {
         if ((e.key === "Enter" || e.key === " ") && !onButton) {
           e.preventDefault();
-          dispatch({ type: "ENTER" });
+          playTransition(() => dispatch({ type: "ENTER" }));
         }
         return;
       }
@@ -1146,7 +1146,7 @@ export default function useGame() {
         // Online goes through the lobby, not a plain Enter-to-start
         if (e.key === "Enter" && !onButton && selectedMode !== "online") {
           e.preventDefault();
-          dispatch({ type: "START", mode: selectedMode });
+          playTransition(() => dispatch({ type: "START", mode: selectedMode }));
         }
         return;
       }
@@ -1173,11 +1173,11 @@ export default function useGame() {
         }
         if (e.key === "Enter" && !onButton) {
           e.preventDefault();
-          dispatch({ type: "RACE_AGAIN" });
+          playTransition(() => dispatch({ type: "RACE_AGAIN" }));
         }
         if (e.key === "Escape") {
           e.preventDefault();
-          dispatch({ type: "MENU" });
+          playTransition(() => dispatch({ type: "MENU" }));
         }
         return;
       }
@@ -1190,7 +1190,7 @@ export default function useGame() {
           dispatch({ type: "RESTART", round: dataRef.current?.startRound });
         } else if (e.key === "m" || e.key === "M") {
           e.preventDefault();
-          dispatch({ type: "MENU" });
+          playTransition(() => dispatch({ type: "MENU" }));
         }
         return;
       }
@@ -1268,6 +1268,7 @@ export default function useGame() {
     syncLive,
     leaveOnline,
     teardownNet,
+    playTransition,
   ]);
 
   useEffect(() => {
@@ -1337,12 +1338,16 @@ export default function useGame() {
         return next;
       });
     },
+    transition,
+    transitionMid,
+    transitionDone,
     enter: () => {
       initAudio();
       uiClick();
-      dispatch({ type: "ENTER" });
+      playTransition(() => dispatch({ type: "ENTER" }));
     },
-    start: () => dispatch({ type: "START", mode: selectedMode }),
+    start: () =>
+      playTransition(() => dispatch({ type: "START", mode: selectedMode })),
     raceAgain: () => {
       if (state.mode === "online") {
         requestOnlineRematch();
@@ -1356,7 +1361,7 @@ export default function useGame() {
         // Solo replays continue through the bank instead of resetting
         round = state.round + 1;
       }
-      dispatch({ type: "RACE_AGAIN", round });
+      playTransition(() => dispatch({ type: "RACE_AGAIN", round }));
     },
     pause: () => dispatch({ type: "PAUSE" }),
     resume: () => dispatch({ type: "RESUME" }),
@@ -1369,7 +1374,7 @@ export default function useGame() {
         leaveOnline();
         return;
       }
-      dispatch({ type: "MENU" });
+      playTransition(() => dispatch({ type: "MENU" }));
     },
     net: netState,
     hostOnline,
