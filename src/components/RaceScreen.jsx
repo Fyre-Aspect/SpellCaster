@@ -3,6 +3,7 @@ import TrackScene from "../scene/TrackScene.jsx";
 import { BOT_DIFFICULTIES } from "../logic/race.js";
 import Hud from "./Hud.jsx";
 import CodePanel from "./CodePanel.jsx";
+import PowerupBar from "./PowerupBar.jsx";
 
 export default function RaceScreen({ game }) {
   const reduced = useReducedMotion();
@@ -40,6 +41,7 @@ export default function RaceScreen({ game }) {
         onToggleMute={game.toggleMute}
       />
       <CodePanel game={game} />
+      {game.mode === "race" && <PowerupBar game={game} />}
       <footer className="race-footer">
         <span>{modeLabel}</span>
         <span>Challenge level: {stars}</span>

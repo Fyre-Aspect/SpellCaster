@@ -81,3 +81,17 @@ export function spendGold(amount) {
   save(state);
   return true;
 }
+
+// Pay out coins from non-campaign wins (races, quick duels) so every mode
+// feeds the shared purse. Returns { earned, gold } for display.
+export function awardGold(amount) {
+  const state = load();
+  const earned = Math.max(0, Math.round(amount));
+  state.gold += earned;
+  save(state);
+  return { earned, gold: state.gold };
+}
+
+export function currentGold() {
+  return load().gold;
+}

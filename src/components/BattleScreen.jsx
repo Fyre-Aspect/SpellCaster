@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { SPELLS, SPELL_ORDER } from "../logic/battle.js";
 import ArenaScene from "../scene/ArenaScene.jsx";
 import CodePanel from "./CodePanel.jsx";
+import PowerupBar from "./PowerupBar.jsx";
 
 const TIER_TAGS = {
   short: "Short · easy",
@@ -211,6 +212,7 @@ export default function BattleScreen({ game }) {
           </p>
         </div>
       )}
+      {game.mode === "battle" && <PowerupBar game={game} />}
       <div className="spell-row">
         {SPELL_ORDER.map((id, i) => {
           const spell = SPELLS[id];

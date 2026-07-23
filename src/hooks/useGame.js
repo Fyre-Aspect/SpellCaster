@@ -28,10 +28,20 @@ import {
 } from "../logic/battle.js";
 import { CAMPAIGN } from "../data/campaign.js";
 import {
+  awardGold,
+  currentGold,
   loadCampaign,
   recordCampaignWin,
+  spendGold,
   starsFor,
 } from "../logic/campaignStore.js";
+import {
+  POWERUPS,
+  POWERUP_DURATION,
+  POWERUP_FX,
+  POWERUP_COOLDOWN_MS,
+  powerupsForMode,
+} from "../logic/powerups.js";
 import { createNet, normalizeCode, randomCode } from "../logic/net.js";
 import { aiPoolCount, refreshAiPool } from "../data/aiPool.js";
 import {
@@ -175,6 +185,65 @@ function recordRunFrom(d, stats) {
   });
 }
 
+// Coins paid out for non-campaign wins so the shared purse fills from any mode
+const RACE_WIN_GOLD = 6;
+const DUEL_WIN_GOLD = 10;
+
+// A timed power-up counts as "active" while its backing timer is still running,
+// which blocks re-buying it and drives the button's live state.
+function isPowerupActive(d, id) {
+  if (!d) return false;
+  const b = d.battle;
+  switch (id) {
+    case "berserk":
+      return !!b && b.playerBerserkLeft > 0;
+    case "freeze":
+      return !!b && b.enemyFrozen > 0;
+    case "autocast":
+      return d.autocastLeft > 0;
+    case "trip":
+      return d.botSlowLeft > 0;
+    default:
+      return false; // instant effects are never "active"
+  }
+}
+
+// Apply a purchased power-up to the live match state (dataRef). Effects that
+// unfold over time set a timer that the RAF loop / tickBattle wind down.
+function applyPowerupEffect(d, id) {
+  const dur = POWERUP_DURATION[id] ?? 0;
+  const b = d.battle;
+  switch (id) {
+    case "potion":
+      b.playerHp = Math.min(b.playerMax, b.playerHp + POWERUP_FX.potionHeal);
+      break;
+    case "ward":
+      b.playerShield = Math.min(
+        POWERUP_FX.wardShieldCap,
+        b.playerShield + POWERUP_FX.wardShield
+      );
+      break;
+    case "berserk":
+      b.playerDamageMult = POWERUP_FX.berserkMult;
+      b.playerBerserkLeft = dur;
+      break;
+    case "freeze":
+      b.enemyFrozen = dur;
+      break;
+    case "surge":
+      d.raceBonusChars += POWERUP_FX.surgeChars;
+      break;
+    case "autocast":
+      d.autocastLeft = dur;
+      break;
+    case "trip":
+      d.botSlowLeft = dur;
+      break;
+    default:
+      break;
+  }
+}
+
 function emptyLive() {
   return {
     blankIndex: 0,
@@ -190,6 +259,9 @@ function emptyLive() {
     combo: null,
     errorPing: 0,
     peekedCurrent: false,
+    coins: currentGold(),
+    danger: false,
+    activePowerups: {},
     battle: null,
   };
 }
@@ -256,8 +328,12 @@ export default function useGame() {
     const runCorrect = d.runChars + snippetCorrect;
     let playerProgress;
     if (d.mode === "race") {
-      // Progress spans the whole multi-snippet sprint, not one snippet
-      const effective = Math.max(0, runCorrect - d.penaltyChars);
+      // Progress spans the whole multi-snippet sprint, not one snippet.
+      // raceBonusChars is free progress granted by Surge / Auto-Cast.
+      const effective = Math.max(
+        0,
+        runCorrect + (d.raceBonusChars || 0) - d.penaltyChars
+      );
       playerProgress = Math.min(1, effective / d.raceTarget);
     } else {
       playerProgress = Math.min(1, snippetCorrect / d.total);
@@ -265,7 +341,21 @@ export default function useGame() {
     let botProgress = d.mode === "race" ? Math.min(1, d.botChars / d.raceTarget) : 0;
     if (d.finished && d.winner === "player") playerProgress = 1;
     if (d.finished && d.winner === "bot") botProgress = 1;
+    // Power-up affordances: what's currently running, and whether the player is
+    // in trouble (behind the bot / low HP) so the UI can flag the rescue button.
+    const activePowerups = {};
+    for (const id of powerupsForMode(d.mode)) {
+      if (isPowerupActive(d, id)) activePowerups[id] = true;
+    }
+    const danger = d.finished
+      ? false
+      : d.mode === "race"
+        ? botProgress > playerProgress + 0.1
+        : !!d.battle && d.battle.playerHp <= d.battle.playerMax * 0.33;
     setLive({
+      coins: d.coins ?? 0,
+      danger,
+      activePowerups,
       blankIndex: d.blankIndex,
       typed: d.typed,
       playerProgress,
@@ -359,6 +449,10 @@ export default function useGame() {
           setBestBump((b) => b + 1);
           stats.newBest = true;
         }
+        const reward = awardGold(RACE_WIN_GOLD);
+        stats.coinsEarned = reward.earned;
+        stats.coinsTotal = reward.gold;
+        setCampaignBump((b) => b + 1);
         winFanfare();
       } else {
         loseSlide();
@@ -486,6 +580,10 @@ export default function useGame() {
           setBestBump((b) => b + 1);
           stats.newBest = true;
         }
+        const reward = awardGold(DUEL_WIN_GOLD);
+        stats.coinsEarned = reward.earned;
+        stats.coinsTotal = reward.gold;
+        setCampaignBump((b) => b + 1);
         winFanfare();
       } else {
         loseSlide();
@@ -673,6 +771,13 @@ export default function useGame() {
         winner: null,
         battle: null,
         raceTarget: 0,
+        // Power-ups: shared coin purse plus per-match effect timers
+        coins: currentGold(),
+        coinsEarned: 0,
+        powerCdUntil: 0,
+        raceBonusChars: 0, // free progress from Surge / Auto-Cast
+        autocastLeft: 0,
+        botSlowLeft: 0, // seconds the bot is slowed by Trip
       };
       if (mode === "race") {
         // A race is a sprint to a shared distance sized so the bot would
@@ -943,8 +1048,14 @@ export default function useGame() {
     (spellId) => {
       const d = dataRef.current;
       if (!d || d.finished || !isBattleMode(d.mode)) return;
-      if (d.selectedSpell === spellId) return;
-      const inc = incantationFor(spellId, d.battleStyle);
+      // Re-picking the spell you're already casting does nothing if you
+      // haven't started typing; if you have, it restarts that incantation
+      // (a quick way to bail on a botched line) rather than being a dead click.
+      if (d.selectedSpell === spellId && d.typed.length === 0) return;
+      const reroll = d.selectedSpell === spellId;
+      const inc = reroll
+        ? { text: d.answers[0], synopsis: d.castSynopsis }
+        : incantationFor(spellId, d.battleStyle);
       d.selectedSpell = spellId;
       d.answers = [inc.text];
       d.castSynopsis = inc.synopsis;
@@ -961,6 +1072,41 @@ export default function useGame() {
       syncLive();
     },
     [syncLive, sendNetState]
+  );
+
+  // Buy-and-use a power-up with coins, right now, mid-match
+  const usePowerup = useCallback(
+    (id) => {
+      const d = dataRef.current;
+      if (!d || d.finished) return;
+      const p = POWERUPS[id];
+      if (!p) return;
+      // Only this mode's power-ups, and not one that's already running
+      if (!powerupsForMode(d.mode).includes(id)) return;
+      if (isPowerupActive(d, id)) return;
+      // Debounce so a stray double-click can't double-spend
+      const now = performance.now();
+      if (now < d.powerCdUntil) return;
+      if (d.coins < p.cost || !spendGold(p.cost)) {
+        errorBuzz(); // can't afford
+        return;
+      }
+      d.powerCdUntil = now + POWERUP_COOLDOWN_MS;
+      d.coins -= p.cost;
+      setCampaignBump((b) => b + 1); // menu/campaign gold reflects the spend
+      applyPowerupEffect(d, id);
+      comboPop();
+      // Surge can shove you past the finish line the instant it lands
+      if (
+        d.mode === "race" &&
+        d.runChars + d.completedChars + d.raceBonusChars >= d.raceTarget
+      ) {
+        finishRace("player");
+        return;
+      }
+      syncLive();
+    },
+    [syncLive, finishRace]
   );
 
   // Show an incoming online cast: enemy projectile + damage pop
@@ -1168,9 +1314,21 @@ export default function useGame() {
       if (d && !d.finished) {
         d.elapsed += dt;
         if (d.mode === "race") {
-          d.botChars += d.bot.tick(dt);
-          if (d.botChars >= d.raceTarget) finishRace("bot");
-          else syncLive();
+          // Trip slows the bot; Auto-Cast types free progress for you
+          const slow = d.botSlowLeft > 0 ? POWERUP_FX.tripMult : 1;
+          if (d.botSlowLeft > 0) d.botSlowLeft = Math.max(0, d.botSlowLeft - dt);
+          d.botChars += d.bot.tick(dt) * slow;
+          if (d.autocastLeft > 0) {
+            d.raceBonusChars += POWERUP_FX.autocastCps * dt;
+            d.autocastLeft = Math.max(0, d.autocastLeft - dt);
+          }
+          if (d.runChars + d.completedChars + d.raceBonusChars >= d.raceTarget) {
+            finishRace("player");
+          } else if (d.botChars >= d.raceTarget) {
+            finishRace("bot");
+          } else {
+            syncLive();
+          }
         } else if (isBattleMode(d.mode)) {
           // Watchdog: opponent stopped broadcasting → treat as a disconnect
           if (
@@ -1329,8 +1487,26 @@ export default function useGame() {
         }
         return;
       }
+      // Alt+1/2/3 fire the mode's power-ups without clashing with typing
+      if (e.altKey && !e.ctrlKey && !e.metaKey && /^[1-3]$/.test(e.key)) {
+        const list = powerupsForMode(dataRef.current?.mode);
+        const id = list[Number(e.key) - 1];
+        if (id) {
+          e.preventDefault();
+          usePowerup(id);
+        }
+        return;
+      }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (isBattleMode(dataRef.current?.mode) && /^[1-5]$/.test(e.key)) {
+      // Number keys pick/switch a spell, but only while no incantation is in
+      // progress — once you start typing, digits are literal (code spells can
+      // contain them) so they never hijack your cast.
+      const dNow = dataRef.current;
+      if (
+        isBattleMode(dNow?.mode) &&
+        dNow.typed.length === 0 &&
+        /^[1-5]$/.test(e.key)
+      ) {
         e.preventDefault();
         selectSpell(SPELL_ORDER[Number(e.key) - 1]);
         return;
@@ -1380,6 +1556,7 @@ export default function useGame() {
     typeChar,
     typeEnter,
     selectSpell,
+    usePowerup,
     finishRun,
     syncLive,
     leaveOnline,
@@ -1498,6 +1675,7 @@ export default function useGame() {
     pause: () => dispatch({ type: "PAUSE" }),
     resume: () => dispatch({ type: "RESUME" }),
     selectSpell,
+    usePowerup,
     restartRun: () =>
       dispatch({ type: "RESTART", round: dataRef.current?.startRound }),
     endRun: finishRun,

@@ -137,6 +137,9 @@ export function createBattle(difficultyId, random = Math.random) {
     playerMax: 100,
     playerShield: 0,
     playerPoison: null, // { perSecond, left } — enemy venom on you
+    playerDamageMult: 1, // >1 while a 2× Strength power-up is active
+    playerBerserkLeft: 0,
+    enemyFrozen: 0, // seconds the enemy is locked out by a Freeze power-up
     enemyHp: tier.hp,
     enemyMax: tier.hp,
     enemyShield: 0,
@@ -165,6 +168,9 @@ export function createCampaignBattle(foe, random = Math.random) {
     playerMax: 100,
     playerShield: 0,
     playerPoison: null,
+    playerDamageMult: 1,
+    playerBerserkLeft: 0,
+    enemyFrozen: 0,
     enemyHp: foe.hp,
     enemyMax: foe.hp,
     enemyShield: 0,
@@ -188,6 +194,7 @@ export function setCampaignFoe(b, foe, random = Math.random) {
   b.enemyHp = foe.hp;
   b.enemyShield = 0;
   b.enemyPoison = null;
+  b.enemyFrozen = 0; // a fresh foe isn't frozen by the last one's Freeze
   b.enemy = { casting: null, idleLeft: 1.0 + random() };
 }
 
@@ -306,6 +313,22 @@ export function tickBattle(b, dt, random = Math.random, style = "words") {
     return events;
   }
 
+  // 2× Strength wears off after its window
+  if (b.playerBerserkLeft > 0) {
+    b.playerBerserkLeft -= dt;
+    if (b.playerBerserkLeft <= 0) {
+      b.playerBerserkLeft = 0;
+      b.playerDamageMult = 1;
+    }
+  }
+
+  // A frozen foe can't advance its cast or its idle timer at all
+  if (b.enemyFrozen > 0) {
+    b.enemyFrozen -= dt;
+    settle(b);
+    return events;
+  }
+
   const tier = b.tier ?? ENEMY_TIERS[b.difficulty] ?? ENEMY_TIERS.medium;
   const enemy = b.enemy;
   if (enemy.casting) {
@@ -366,13 +389,17 @@ export function applyCast(b, spellId, metrics, side = "player") {
   const spell = SPELLS[spellId];
   const { mult, crit, wpm } = castPower(spell, metrics);
   const amount = Math.max(1, Math.round(spell.power * mult));
+  // 2× Strength (or any active buff) scales offence only, never heal/shield
+  const dmgMult = b[`${side}DamageMult`] ?? 1;
+  const attackAmount = Math.max(1, Math.round(spell.power * mult * dmgMult));
+  const poisonPerSecond = spell.power * mult * dmgMult;
   const foe = OTHER_SIDE[side];
   let dealt = 0;
   if (spell.type === "attack") {
-    dealt = damageSide(b, foe, amount);
+    dealt = damageSide(b, foe, attackAmount);
   } else if (spell.type === "poison") {
-    b[`${foe}Poison`] = { perSecond: spell.power * mult, left: spell.duration };
-    dealt = Math.round(spell.power * mult * spell.duration);
+    b[`${foe}Poison`] = { perSecond: poisonPerSecond, left: spell.duration };
+    dealt = Math.round(poisonPerSecond * spell.duration);
   } else if (spell.type === "heal") {
     b[`${side}Hp`] = Math.min(b[`${side}Max`], b[`${side}Hp`] + amount);
   } else if (spell.type === "shield") {
@@ -387,8 +414,8 @@ export function applyCast(b, spellId, metrics, side = "player") {
       spell.type === "attack" || spell.type === "poison" ? dealt : amount,
     // Pre-shield damage and poison parameters, so a remote opponent can
     // apply the cast against their own authoritative state
-    raw: amount,
-    perSecond: spell.type === "poison" ? spell.power * mult : 0,
+    raw: attackAmount,
+    perSecond: spell.type === "poison" ? poisonPerSecond : 0,
     duration: spell.duration ?? 0,
     crit,
     wpm: Math.round(wpm),
