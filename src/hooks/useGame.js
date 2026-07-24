@@ -1498,18 +1498,20 @@ export default function useGame() {
         return;
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      // Number keys pick/switch a spell, but only while no incantation is in
-      // progress — once you start typing, digits are literal (code spells can
-      // contain them) so they never hijack your cast.
+      // Number keys pick/switch a spell — but a digit that's actually part of
+      // the incantation you're typing (code spells can contain digits) is a
+      // literal keystroke, never a spell switch. So only hijack 1–5 while
+      // nothing is typed yet AND it isn't the incantation's first character.
       const dNow = dataRef.current;
-      if (
-        isBattleMode(dNow?.mode) &&
-        dNow.typed.length === 0 &&
-        /^[1-5]$/.test(e.key)
-      ) {
-        e.preventDefault();
-        selectSpell(SPELL_ORDER[Number(e.key) - 1]);
-        return;
+      if (isBattleMode(dNow?.mode) && /^[1-5]$/.test(e.key)) {
+        const expected = dNow.answers[dNow.blankIndex];
+        const isLiteralChar =
+          dNow.typed.length > 0 || (expected != null && expected[0] === e.key);
+        if (!isLiteralChar) {
+          e.preventDefault();
+          selectSpell(SPELL_ORDER[Number(e.key) - 1]);
+          return;
+        }
       }
       if (e.key === "Enter") {
         e.preventDefault();

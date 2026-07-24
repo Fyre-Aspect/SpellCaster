@@ -1658,6 +1658,12 @@ button {
   color: var(--ink-dim);
 }
 
+/* Coin payout on a non-campaign race / duel win */
+.solo-reward {
+  justify-content: center;
+  margin: 2px 0 4px;
+}
+
 .reward-firstclear {
   font-family: var(--font-comic);
   font-size: 13px;
@@ -2251,6 +2257,169 @@ button {
 .end-run-btn:hover {
   background: var(--yellow);
   color: var(--ink);
+}
+
+/* --- Power-up bar (in-match shop) --- */
+.powerup-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 18px;
+  border-top: 3px solid var(--ink);
+  background: var(--panel);
+}
+
+.powerup-coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-comic);
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--ink);
+  background: #fff2bf;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  padding: 4px 12px;
+  box-shadow: 2px 2px 0 var(--ink);
+  white-space: nowrap;
+}
+
+.powerup-alert {
+  font-family: var(--font-comic);
+  font-size: 12.5px;
+  font-weight: 900;
+  color: #fffdf5;
+  background: var(--red);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  padding: 3px 12px;
+  box-shadow: 2px 2px 0 var(--ink);
+  white-space: nowrap;
+  animation: powerup-alert-blink 0.9s ease-in-out infinite;
+}
+
+@keyframes powerup-alert-blink {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.powerup-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.powerup-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-comic);
+  background: var(--panel);
+  color: var(--ink);
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  padding: 5px 11px 5px 9px;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 var(--ink);
+  transition:
+    transform 0.1s ease,
+    box-shadow 0.1s ease,
+    background 0.1s ease;
+}
+
+.powerup-btn:hover:not(:disabled) {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 var(--ink);
+  background: var(--yellow);
+}
+
+.powerup-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.powerup-btn.active {
+  background: var(--green);
+  opacity: 1;
+  cursor: default;
+}
+
+.powerup-hotkey {
+  position: absolute;
+  top: -9px;
+  left: -7px;
+  min-width: 20px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  font-size: 10px;
+  font-weight: 900;
+  color: #fffdf5;
+  background: var(--blue);
+  border: 2px solid var(--ink);
+  border-radius: 9px;
+  box-shadow: 1px 1px 0 var(--ink);
+}
+
+.powerup-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.powerup-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+}
+
+.powerup-name {
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.powerup-cost {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink-dim);
+}
+
+.powerup-btn.active .powerup-cost {
+  color: var(--ink);
+}
+
+/* The rescue button glows when you're losing / low on HP */
+.powerup-btn.panic {
+  background: var(--yellow);
+  animation: powerup-panic 0.7s ease-in-out infinite;
+}
+
+@keyframes powerup-panic {
+  0%,
+  100% {
+    transform: translate(0, 0);
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+  50% {
+    transform: translate(-2px, -2px) scale(1.04);
+    box-shadow: 5px 5px 0 var(--red);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .powerup-alert,
+  .powerup-btn.panic {
+    animation: none;
+  }
 }
 
 .overlay {

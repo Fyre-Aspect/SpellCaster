@@ -124,6 +124,12 @@ export default function Finished({
             )}
           </div>
         )}
+        {!isCampaign && result.coinsEarned > 0 && (
+          <div className="reward-gold solo-reward">
+            <span className="reward-earned">🪙 +{result.coinsEarned}</span>
+            <span className="reward-total">{result.coinsTotal} total</span>
+          </div>
+        )}
         {result.newBest && (
           <motion.div
             className="new-best"

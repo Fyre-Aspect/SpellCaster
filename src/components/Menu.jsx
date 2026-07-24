@@ -329,7 +329,7 @@ export default function Menu({
         {isCampaign ? (
           <>
             <li>Beat each wizard to unlock the next — hordes throw several foes at you</li>
-            <li>Win to earn 🪙 gold and up to ★★★ · spend it in the shop (coming soon)</li>
+            <li>Win to earn 🪙 gold · spend it mid-duel on potions, shields &amp; 2× damage</li>
             <li>Arrow keys navigate · Enter opens the campaign · Esc pauses a duel</li>
           </>
         ) : isBattle ? (
@@ -339,6 +339,9 @@ export default function Menu({
             )}
             {isOnline && (
               <li>Duel a friend anywhere — both cast at once, first to drop the other&apos;s HP wins</li>
+            )}
+            {selectedMode === "battle" && (
+              <li>Spend 🪙 coins mid-fight on a health potion, shield, 2× damage or a foe freeze</li>
             )}
             <li>Pick spells with 1&ndash;5 — stronger spells take longer to type</li>
             <li>
@@ -355,6 +358,9 @@ export default function Menu({
               <li>The missing code is shown faintly in the blanks — type over it!</li>
             ) : (
               <li>Answers are hidden — hold Ctrl to peek (costs a little progress)</li>
+            )}
+            {selectedMode === "race" && (
+              <li>Losing to the bot? Spend 🪙 coins on Auto-Cast, a Surge or a bot Trip</li>
             )}
             <li>Arrow keys navigate · Enter starts · Esc pauses</li>
           </>
