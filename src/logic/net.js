@@ -16,7 +16,13 @@ const JOIN_TIMEOUT_MS = 10000;
 // lowest free slot and waits there for the next arrival.
 const QUICK_PREFIX = ID_PREFIX + "quick-";
 const QUICK_SLOTS = 8;
-const PROBE_MS = 2200; // long enough for a cold WebRTC handshake
+// Opening a WebRTC channel to a real host means ICE gathering against a STUN
+// server, which regularly takes several seconds on a home connection. Giving
+// up early is worse than waiting: the host has already accepted us by then,
+// so an early hang-up reads to them as "opponent disconnected".
+const PROBE_OPEN_MS = 9000; // waiting for the channel to open at all
+const PROBE_GREET_MS = 2500; // once open, a free room greets us immediately
+const HANDSHAKE_MS = 9000; // host waiting for the joiner to confirm
 const MAX_SCANS = 4;
 
 export function randomCode() {
@@ -37,6 +43,7 @@ export function normalizeCode(raw) {
 export function createNet(handlers) {
   let peer = null;
   let conn = null;
+  let pending = null; // quick-match joiner we have greeted but not committed to
   let destroyed = false;
   let joinTimer = null;
 
@@ -59,17 +66,46 @@ export function createNet(handlers) {
     c.on("error", gone);
   }
 
-  // A host greets the one joiner it accepts. Quick-match probes rely on this
-  // to tell a free room from one that is already mid-duel and turning them
-  // away, so it must be the very first thing the room says.
+  // Quick-match rooms use a three-way handshake: the host greets whoever
+  // knocks, and only commits to them once they answer. A prober that gives up
+  // mid-handshake therefore costs the host nothing — it stays in the queue for
+  // the next arrival instead of reporting a disconnect and dropping out.
   function accept(c, greet) {
-    if (conn) {
-      // Room is full — turn away extra joiners
+    if (conn || pending) {
+      // Room is taken — turn away extra joiners
       c.on("open", () => c.close());
       return;
     }
-    if (greet) c.on("open", () => c.send({ t: "welcome" }));
-    wire(c, true);
+    if (!greet) {
+      // Code rooms: the joiner typed our code, so there is nobody else to
+      // confuse them with
+      wire(c, true);
+      return;
+    }
+    pending = c;
+    let settled = false;
+    const release = () => {
+      if (settled || pending !== c) return;
+      settled = true;
+      pending = null;
+      clearTimeout(timer);
+      try {
+        c.close();
+      } catch {
+        /* already gone */
+      }
+    };
+    const timer = setTimeout(release, HANDSHAKE_MS);
+    c.on("open", () => c.send({ t: "welcome" }));
+    c.on("data", (msg) => {
+      if (settled || pending !== c || msg?.t !== "ready") return;
+      settled = true;
+      pending = null;
+      clearTimeout(timer);
+      wire(c, true, true);
+    });
+    c.on("close", release);
+    c.on("error", release);
   }
 
   function fail(kind) {
@@ -119,16 +155,23 @@ export function createNet(handlers) {
     probeConn = c;
     c.on("open", () => {
       opened = true;
+      // Somebody is home. A free room greets us straight away, so from here
+      // the wait is short — an occupied or wedged room shouldn't hold us up.
+      if (gen !== probeGen) return;
+      if (probeTimer) clearTimeout(probeTimer);
+      probeTimer = setTimeout(next, PROBE_GREET_MS);
     });
     c.on("data", (msg) => {
       if (gen !== probeGen || destroyed || conn) return;
       if (msg?.t !== "welcome") return;
-      // A free room greeted us — this is our opponent
+      // Greeted — claim this room before anyone else does, and tell the host
+      // we're really here so they can commit to us
       probeGen += 1;
       probeAdvance = null;
       if (probeTimer) clearTimeout(probeTimer);
       probeTimer = null;
       probeConn = null;
+      c.send({ t: "ready" });
       wire(c, false, true);
     });
     c.on("close", () => {
@@ -138,7 +181,7 @@ export function createNet(handlers) {
       next();
     });
     c.on("error", next);
-    probeTimer = setTimeout(next, PROBE_MS);
+    probeTimer = setTimeout(next, PROBE_OPEN_MS);
   }
 
   // Nobody was waiting — open our own room at the lowest slot that is free
@@ -241,6 +284,12 @@ export function createNet(handlers) {
       if (joinTimer) clearTimeout(joinTimer);
       probeAdvance = null;
       dropProbe();
+      try {
+        pending?.close();
+      } catch {
+        /* already gone */
+      }
+      pending = null;
       try {
         conn?.close();
       } catch {

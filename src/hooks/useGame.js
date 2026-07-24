@@ -101,8 +101,13 @@ const NET_IDLE = { status: "idle", code: null, error: null, rematchWaiting: fals
 const NET_STATE_MS = 120; // throttle for online state broadcasts
 // Both sides broadcast state continuously; a gap this long means the
 // opponent's tab closed or their connection dropped (WebRTC's own
-// disconnect detection is far slower)
-const NET_TIMEOUT_MS = 5000;
+// disconnect detection is far slower). Generous enough to ride out a stall
+// on a bad connection — calling a live opponent dead is far worse than
+// taking another second to notice a real one.
+const NET_TIMEOUT_MS = 8000;
+// The frame loop stops in a backgrounded tab, so it cannot be the only thing
+// keeping us alive in the opponent's eyes. Timers still fire when hidden.
+const NET_HEARTBEAT_MS = 1000;
 
 function bestKeyFor(mode, difficulty, content) {
   if (mode === "race") {
@@ -320,6 +325,10 @@ export default function useGame({ playerName } = {}) {
   battleStyleRef.current = battleStyle;
   const playerNameRef = useRef("You");
   playerNameRef.current = displayName(playerName);
+  // Signed-out players have no name to show the world — "You" would read as
+  // the opponent's own plate on their screen
+  const netNameRef = useRef("Challenger");
+  netNameRef.current = displayName(playerName, "Challenger");
   const localRematchRef = useRef(false);
   const remoteRematchRef = useRef(false);
 
@@ -656,7 +665,7 @@ export default function useGame({ playerName } = {}) {
   // Swap display names as soon as the channel opens, so both arenas show
   // who they're actually fighting
   const sendGreeting = useCallback(() => {
-    netRef.current?.send({ t: "hello", name: playerNameRef.current });
+    netRef.current?.send({ t: "hello", name: netNameRef.current });
   }, []);
 
   // Broadcast our authoritative side (HP, shield, poison, what we're
@@ -1282,12 +1291,25 @@ export default function useGame({ playerName } = {}) {
 
   const netPeerLeft = useCallback(() => {
     const d = dataRef.current;
-    if (d && isBattleMode(d.mode) && d.mode === "online" && !d.finished) {
+    if (
+      state.screen === "racing" &&
+      d &&
+      d.mode === "online" &&
+      d.battle &&
+      !d.finished
+    ) {
       // Opponent vanished mid-duel — award the win by forfeit
       d.opponentLeft = true;
       d.battle.over = true;
       d.battle.winner = "player";
       finishBattle("player");
+    } else if (state.screen === "countdown") {
+      // They dropped before the duel even began. There is no result worth
+      // showing, and FINISH is not a move the countdown accepts — announcing
+      // a win here would strand the player on a frozen arena.
+      teardownNet();
+      setNetState({ ...NET_IDLE, status: "error", error: "peer-left" });
+      dispatch({ type: "ABORT" });
     } else if (state.screen === "finished") {
       remoteRematchRef.current = false;
       setNetState((n) => ({ ...n, status: "error", error: "peer-left" }));
@@ -1378,6 +1400,16 @@ export default function useGame({ playerName } = {}) {
     if (state.screen !== "racing") return;
     let rafId;
     let last = performance.now();
+    // Nobody broadcasts during the countdown, and the two sides start it up to
+    // a second apart — start the disconnect watchdog from the first live frame
+    // instead of from a silence that was never a symptom of anything.
+    if (dataRef.current) dataRef.current.lastNetRecv = last;
+    // Keep proving we're alive even while the tab is in the background, where
+    // the frame loop (and with it the usual broadcast) stops dead
+    const heartbeat =
+      state.mode === "online"
+        ? setInterval(() => sendNetState(true), NET_HEARTBEAT_MS)
+        : null;
     const frame = (now) => {
       const dt = Math.min((now - last) / 1000, 0.1);
       last = now;
@@ -1456,9 +1488,13 @@ export default function useGame({ playerName } = {}) {
       rafId = requestAnimationFrame(frame);
     };
     rafId = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(rafId);
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (heartbeat) clearInterval(heartbeat);
+    };
   }, [
     state.screen,
+    state.mode,
     finishRace,
     finishRun,
     finishBattle,
