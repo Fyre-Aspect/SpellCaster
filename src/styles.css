@@ -1494,6 +1494,14 @@ button {
   box-shadow: 0 0 0 3px rgba(47, 111, 228, 0.5);
 }
 
+/* The single control the arrow keys are pointing at inside a row (the online
+   lobby, where one row holds three separate ways in) */
+.nav-pick {
+  outline: 3px dashed var(--blue);
+  outline-offset: 5px;
+  border-radius: 16px;
+}
+
 /* --- Solo / Versus tabs --- */
 .mode-tabs {
   display: flex;

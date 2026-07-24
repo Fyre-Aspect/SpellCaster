@@ -46,6 +46,9 @@ const pick = (fn) => (e) => {
   fn();
 };
 
+// The ways into an online duel, left to right, as the arrow keys walk them
+const LOBBY_CHOICES = ["quick", "host", "join"];
+
 export default function Menu({
   best,
   selectedMode,
@@ -100,14 +103,22 @@ export default function Menu({
   const overlayOpenRef = useRef(false);
   overlayOpenRef.current = campaignOpen || accountActive;
 
-  // Rows the arrow keys rove through, top to bottom
+  // Rows the arrow keys rove through, top to bottom. Online swaps the start
+  // button for the lobby, whose three ways in are walked with left/right.
   const rows = useMemo(() => {
     const r = ["modes"];
     if (showDifficulty) r.push("difficulty");
     r.push("options");
-    if (!isOnline) r.push("start");
+    r.push(isOnline ? "lobby" : "start");
     return r;
   }, [showDifficulty, isOnline]);
+
+  const [lobbyChoice, setLobbyChoice] = useState("quick");
+  const codeInputRef = useRef(null);
+  // The lobby only offers choices while it is idle — once it is searching or
+  // connecting there is nothing to pick, only Esc to back out
+  const lobbyIdle = net.status === "idle" || net.status === "error";
+  const lobbyOpen = isOnline && lobbyIdle;
 
   const [activeIdx, setActiveIdx] = useState(0);
   useEffect(() => {
@@ -128,14 +139,28 @@ export default function Menu({
       return;
     }
     if (isOnline) {
-      // Idle lobby only — mid-search or mid-connect, let it run
-      if (net.status === "idle" || net.status === "error") onQuickMatch();
+      // Mid-search or mid-connect there is nothing to confirm — let it run
+      if (!lobbyOpen) return;
+      if (lobbyChoice === "host") {
+        onHostOnline();
+      } else if (lobbyChoice === "join") {
+        // Hand the keyboard to the code box; Enter in there joins
+        const el = codeInputRef.current;
+        el?.focus();
+        el?.select();
+      } else {
+        onQuickMatch();
+      }
       return;
     }
     onStart();
   };
   const confirmRef = useRef(confirm);
   confirmRef.current = confirm;
+
+  // Esc backs out of matchmaking, the one control a busy lobby still has
+  const cancelRef = useRef(null);
+  cancelRef.current = isOnline && !lobbyIdle ? onCancelOnline : null;
 
   // Full keyboard navigation: up/down pick a row, left/right change its
   // value, Enter or Space confirms
@@ -149,6 +174,11 @@ export default function Menu({
         if (el?.closest("button, a[href]")) return;
         e.preventDefault();
         confirmRef.current();
+        return;
+      }
+      if (e.key === "Escape" && cancelRef.current) {
+        e.preventDefault();
+        cancelRef.current();
         return;
       }
       if (e.key === "ArrowUp") {
@@ -173,6 +203,9 @@ export default function Menu({
           } else {
             onSelectContent(step(Object.keys(CONTENT_TYPES), content, dir));
           }
+        } else if (row === "lobby") {
+          e.preventDefault();
+          if (lobbyOpen) setLobbyChoice((c) => step(LOBBY_CHOICES, c, dir));
         }
       }
     };
@@ -187,6 +220,7 @@ export default function Menu({
     content,
     battleStyle,
     isBattleLike,
+    lobbyOpen,
     onSelectMode,
     onSelectDifficulty,
     onSelectContent,
@@ -318,6 +352,8 @@ export default function Menu({
             onJoin={onJoinOnline}
             onQuickMatch={onQuickMatch}
             onCancel={onCancelOnline}
+            choice={activeRow === "lobby" ? lobbyChoice : null}
+            codeInputRef={codeInputRef}
           />
         </>
       ) : isCampaign ? (
@@ -377,7 +413,7 @@ export default function Menu({
             <li>Pick spells with 1&ndash;5 — stronger spells take longer to type</li>
             <li>
               {isOnline
-                ? "Enter or Space finds a quick match · Esc leaves the duel"
+                ? "Arrow keys pick Quick Match, Create or Join · Enter or Space goes · Esc cancels"
                 : "Arrow keys navigate · Enter or Space starts · Esc pauses"}
             </li>
           </>

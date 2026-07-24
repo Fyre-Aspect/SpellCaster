@@ -34,12 +34,22 @@ function Searching({ title, note, onCancel, reduced }) {
   );
 }
 
-export default function Lobby({ net, onHost, onJoin, onQuickMatch, onCancel }) {
+export default function Lobby({
+  net,
+  onHost,
+  onJoin,
+  onQuickMatch,
+  onCancel,
+  choice = null,
+  codeInputRef,
+}) {
   const reduced = useReducedMotion();
   const [code, setCode] = useState("");
   const status = net.status;
   const busy = status === "starting" || status === "connecting";
   const waiting = status === "waiting";
+  // Which way in the arrow keys are currently pointing at
+  const marked = (id) => (choice === id ? " nav-pick" : "");
 
   // Quick match: scanning for an opponent, then holding a public room open
   if (status === "searching" || status === "queued") {
@@ -93,7 +103,7 @@ export default function Lobby({ net, onHost, onJoin, onQuickMatch, onCancel }) {
     >
       <button
         type="button"
-        className="quick-match"
+        className={`quick-match${marked("quick")}`}
         disabled={busy}
         onClick={(e) => {
           e.currentTarget.blur();
@@ -109,7 +119,7 @@ export default function Lobby({ net, onHost, onJoin, onQuickMatch, onCancel }) {
       <div className="lobby-or">or duel a friend</div>
 
       <div className="lobby-cols">
-        <div className="lobby-col">
+        <div className={`lobby-col${marked("host")}`}>
           <p className="lobby-title">Start a duel</p>
           <p className="lobby-hint">Open a room and share the code.</p>
           <button
@@ -126,17 +136,23 @@ export default function Lobby({ net, onHost, onJoin, onQuickMatch, onCancel }) {
         </div>
         <div className="lobby-divider">or</div>
         <form
-          className="lobby-col"
+          className={`lobby-col${marked("join")}`}
           onSubmit={(e) => {
             e.preventDefault();
+            if (code.length < 4) return;
             onJoin(code);
           }}
         >
           <p className="lobby-title">Join a room</p>
           <input
+            ref={codeInputRef}
             className="code-input"
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 4))}
+            onKeyDown={(e) => {
+              // Give the keyboard back to the menu
+              if (e.key === "Escape") e.currentTarget.blur();
+            }}
             placeholder="CODE"
             maxLength={4}
             autoComplete="off"
