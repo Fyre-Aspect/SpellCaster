@@ -5,11 +5,31 @@ import Hud from "./Hud.jsx";
 import CodePanel from "./CodePanel.jsx";
 import PowerupBar from "./PowerupBar.jsx";
 
-export default function RaceScreen({ game }) {
+// The plates that sit on top of the track — same shape as the duel arena's,
+// so every mode names who is playing in the same place
+function RacerPlate({ name, photo, badge, tone, pct }) {
+  return (
+    <div className={`racer-plate ${tone}`}>
+      {photo ? (
+        <img className="hp-avatar" src={photo} alt="" referrerPolicy="no-referrer" />
+      ) : (
+        <span className="hp-avatar hp-avatar-fallback">{badge}</span>
+      )}
+      <span className="racer-plate-name" title={name}>
+        {name}
+      </span>
+      <span className="racer-plate-pct">{pct}%</span>
+    </div>
+  );
+}
+
+export default function RaceScreen({ game, user }) {
   const reduced = useReducedMotion();
+  const playerName = game.live.playerName ?? "You";
+  const botName = `${BOT_DIFFICULTIES[game.difficulty].label} Bot`;
   const modeLabel =
     game.mode === "race"
-      ? `Round ${game.round} · Bot: ${BOT_DIFFICULTIES[game.difficulty].label}`
+      ? `Round ${game.round}`
       : game.mode === "endless"
         ? `Endless · ${game.live.snippets} finished`
         : `Time Trial · ${game.live.snippets} finished`;
@@ -33,10 +53,34 @@ export default function RaceScreen({ game }) {
           finished={game.screen === "finished"}
           winner={game.result?.winner ?? "player"}
         />
+        <div className="battle-overlay">
+          <RacerPlate
+            name={playerName}
+            photo={user?.photo}
+            badge={playerName.charAt(0).toUpperCase()}
+            tone="player"
+            pct={Math.round(game.live.playerProgress * 100)}
+          />
+          {game.mode === "race" && (
+            <>
+              <div className="versus-chip" aria-hidden="true">
+                VS
+              </div>
+              <RacerPlate
+                name={botName}
+                badge="B"
+                tone="bot"
+                pct={Math.round(game.live.botProgress * 100)}
+              />
+            </>
+          )}
+        </div>
       </div>
       <Hud
         live={game.live}
         mode={game.mode}
+        playerName={playerName}
+        botName={botName}
         muted={game.muted}
         onToggleMute={game.toggleMute}
       />

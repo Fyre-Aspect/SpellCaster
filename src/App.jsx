@@ -11,8 +11,8 @@ import PauseOverlay from "./components/PauseOverlay.jsx";
 import FireballTransition from "./components/FireballTransition.jsx";
 
 export default function App() {
-  const game = useGame();
   const auth = useAuth();
+  const game = useGame({ playerName: auth.user?.name });
   return (
     <div className="app">
       <AnimatePresence mode="wait">
@@ -46,6 +46,7 @@ export default function App() {
             net={game.net}
             onHostOnline={game.hostOnline}
             onJoinOnline={game.joinOnline}
+            onQuickMatch={game.quickMatch}
             onCancelOnline={game.cancelOnline}
             user={auth.user}
             onSignIn={auth.signInGoogle}
@@ -59,9 +60,9 @@ export default function App() {
         ) : game.mode === "battle" ||
           game.mode === "pvp" ||
           game.mode === "online" ? (
-          <BattleScreen key="battle" game={game} />
+          <BattleScreen key="battle" game={game} user={auth.user} />
         ) : (
-          <RaceScreen key="race" game={game} />
+          <RaceScreen key="race" game={game} user={auth.user} />
         )}
       </AnimatePresence>
       <AnimatePresence>

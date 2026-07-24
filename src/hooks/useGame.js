@@ -43,6 +43,7 @@ import {
   powerupsForMode,
 } from "../logic/powerups.js";
 import { createNet, normalizeCode, randomCode } from "../logic/net.js";
+import { isConfirmKey, onNativeControl } from "../logic/keys.js";
 import { aiPoolCount, refreshAiPool } from "../data/aiPool.js";
 import {
   BOT_DIFFICULTIES,
@@ -246,6 +247,7 @@ function applyPowerupEffect(d, id) {
 
 function emptyLive() {
   return {
+    playerName: "You",
     blankIndex: 0,
     typed: "",
     playerProgress: 0,
@@ -266,7 +268,18 @@ function emptyLive() {
   };
 }
 
-export default function useGame() {
+// Names go on the arena plates and across the wire to the other player, so
+// keep them short and printable whatever the source
+export function displayName(raw, fallback = "You") {
+  const name = String(raw ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!name) return fallback;
+  // First name only — full names blow out the plate
+  return name.split(" ")[0].slice(0, 14);
+}
+
+export default function useGame({ playerName } = {}) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const [live, setLive] = useState(emptyLive);
   const [count, setCount] = useState(null);
@@ -302,8 +315,11 @@ export default function useGame() {
   const netMsgRef = useRef(null);
   const netPeerLeftRef = useRef(null);
   const netStyleRef = useRef(null);
+  const netPeerNameRef = useRef(null); // the online opponent's display name
   const battleStyleRef = useRef(battleStyle);
   battleStyleRef.current = battleStyle;
+  const playerNameRef = useRef("You");
+  playerNameRef.current = displayName(playerName);
   const localRematchRef = useRef(false);
   const remoteRematchRef = useRef(false);
 
@@ -354,6 +370,7 @@ export default function useGame() {
         : !!d.battle && d.battle.playerHp <= d.battle.playerMax * 0.33;
     setLive({
       coins: d.coins ?? 0,
+      playerName: d.playerName ?? "You",
       danger,
       activePowerups,
       blankIndex: d.blankIndex,
@@ -401,6 +418,7 @@ export default function useGame() {
             castSeq: d.castSeq,
             lastCast: d.lastCast,
             lastEnemyCast: d.lastEnemyCast,
+            playerName: d.playerName ?? "You",
             enemyName: d.battle.enemyName ?? null,
             campaign: d.campaign
               ? {
@@ -630,8 +648,15 @@ export default function useGame() {
     netRef.current?.destroy();
     netRef.current = null;
     netStyleRef.current = null;
+    netPeerNameRef.current = null;
     localRematchRef.current = false;
     remoteRematchRef.current = false;
+  }, []);
+
+  // Swap display names as soon as the channel opens, so both arenas show
+  // who they're actually fighting
+  const sendGreeting = useCallback(() => {
+    netRef.current?.send({ t: "hello", name: playerNameRef.current });
   }, []);
 
   // Broadcast our authoritative side (HP, shield, poison, what we're
@@ -672,6 +697,7 @@ export default function useGame() {
         onWaiting: (code) => setNetState({ ...NET_IDLE, status: "waiting", code }),
         onConnected: (isHost) => {
           setNetState((n) => ({ ...n, status: "connected", error: null }));
+          sendGreeting();
           if (isHost) {
             // Host's spell style rules the match
             netStyleRef.current = battleStyleRef.current;
@@ -696,7 +722,38 @@ export default function useGame() {
       net.host(randomCode());
     };
     tryHost();
-  }, [teardownNet]);
+  }, [teardownNet, sendGreeting]);
+
+  // Quick Match: no codes, no friend required — the net layer finds whoever
+  // else is looking right now and drops us straight into a duel.
+  const quickMatch = useCallback(() => {
+    teardownNet();
+    setNetState({ ...NET_IDLE, status: "searching", quick: true });
+    const net = createNet({
+      onSearching: () =>
+        setNetState({ ...NET_IDLE, status: "searching", quick: true }),
+      // No code to show: we're holding a public slot until someone arrives
+      onWaiting: () => setNetState({ ...NET_IDLE, status: "queued", quick: true }),
+      onConnected: (isHost) => {
+        setNetState((n) => ({ ...n, status: "connected", error: null }));
+        sendGreeting();
+        if (isHost) {
+          netStyleRef.current = battleStyleRef.current;
+          netRef.current?.send({ t: "start", style: battleStyleRef.current });
+          dispatch({ type: "START", mode: "online" });
+        }
+      },
+      onMessage: (m) => netMsgRef.current?.(m),
+      onPeerLeft: () => netPeerLeftRef.current?.(),
+      onError: (kind) => {
+        netRef.current?.destroy();
+        netRef.current = null;
+        setNetState({ ...NET_IDLE, status: "error", error: kind, quick: true });
+      },
+    });
+    netRef.current = net;
+    net.quick();
+  }, [teardownNet, sendGreeting]);
 
   const joinOnline = useCallback(
     (rawCode) => {
@@ -709,8 +766,10 @@ export default function useGame() {
       setNetState({ ...NET_IDLE, status: "connecting", code });
       const net = createNet({
         onWaiting: () => {},
-        onConnected: () =>
-          setNetState((n) => ({ ...n, status: "connected", error: null })),
+        onConnected: () => {
+          setNetState((n) => ({ ...n, status: "connected", error: null }));
+          sendGreeting();
+        },
         onMessage: (m) => netMsgRef.current?.(m),
         onPeerLeft: () => netPeerLeftRef.current?.(),
         onError: (kind) => {
@@ -722,7 +781,7 @@ export default function useGame() {
       netRef.current = net;
       net.join(code);
     },
-    [teardownNet]
+    [teardownNet, sendGreeting]
   );
 
   const cancelOnline = useCallback(() => {
@@ -737,6 +796,7 @@ export default function useGame() {
       if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
       dataRef.current = {
         mode,
+        playerName: playerNameRef.current || "You",
         difficulty: difficultyId,
         content: contentId,
         round,
@@ -799,9 +859,11 @@ export default function useGame() {
             mode === "pvp"
               ? createPvpBattle()
               : mode === "online"
-                ? createOnlineBattle()
+                ? createOnlineBattle(netPeerNameRef.current)
                 : createBattle(difficultyId);
         }
+        // Local PvP is two people at one keyboard, not the account holder
+        if (mode === "pvp") d.playerName = "Player 1";
         // Online matches use the host's spell style for both players
         d.battleStyle =
           mode === "online" ? (netStyleRef.current ?? battleStyle) : battleStyle;
@@ -1133,6 +1195,15 @@ export default function useGame() {
       const d = dataRef.current;
       // Any message proves the opponent is alive — refresh the watchdog
       if (d) d.lastNetRecv = performance.now();
+      if (m.t === "hello") {
+        // Opponent introduced themselves — show their name on the arena plate
+        netPeerNameRef.current = displayName(m.name, "Opponent");
+        if (d?.battle?.online) {
+          d.battle.enemyName = netPeerNameRef.current;
+          syncLive();
+        }
+        return;
+      }
       if (m.t === "start") {
         // Joiner: host has chosen the style and kicked off the duel
         netStyleRef.current =
@@ -1398,32 +1469,21 @@ export default function useGame() {
 
   useEffect(() => {
     function onKeyDown(e) {
-      // A focused button handles Enter natively — don't also dispatch
-      const onButton =
-        e.target instanceof HTMLElement && e.target.closest("button") !== null;
+      // A focused button/input handles Enter and Space natively — never
+      // double-fire on top of it
+      const onControl = onNativeControl(e);
+      const confirm = isConfirmKey(e);
       if (state.screen === "landing") {
-        if ((e.key === "Enter" || e.key === " ") && !onButton) {
+        if (confirm && !onControl) {
           e.preventDefault();
+          initAudio();
+          uiClick();
           playTransition(() => dispatch({ type: "ENTER" }));
         }
         return;
       }
-      if (state.screen === "menu") {
-        // Don't start while the account dropdown/modal is capturing input
-        if (document.body.dataset.menuLock) return;
-        // Online (lobby) and campaign (level map) don't plain Enter-to-start
-        if (
-          e.key === "Enter" &&
-          !onButton &&
-          selectedMode !== "online" &&
-          selectedMode !== "campaign"
-        ) {
-          e.preventDefault();
-          campaignRef.current = null;
-          playTransition(() => dispatch({ type: "START", mode: selectedMode }));
-        }
-        return;
-      }
+      // The menu owns its own keyboard model (rows + confirm) — see Menu.jsx
+      if (state.screen === "menu") return;
       if (state.screen === "countdown") {
         if (e.key === "Escape") {
           e.preventDefault();
@@ -1445,7 +1505,7 @@ export default function useGame() {
           // Rematch needs both players — handled by the button, not Enter
           return;
         }
-        if (e.key === "Enter" && !onButton) {
+        if (confirm && !onControl) {
           e.preventDefault();
           playTransition(() => dispatch({ type: "RACE_AGAIN" }));
         }
@@ -1456,7 +1516,7 @@ export default function useGame() {
         return;
       }
       if (state.screen === "paused") {
-        if (e.key === "Escape" || (e.key === "Enter" && !onButton)) {
+        if (e.key === "Escape" || (confirm && !onControl)) {
           e.preventDefault();
           dispatch({ type: "RESUME" });
         } else if (e.key === "r" || e.key === "R") {
@@ -1551,7 +1611,6 @@ export default function useGame() {
   }, [
     state.screen,
     state.mode,
-    selectedMode,
     showAnswers,
     content,
     applyPeekPenalty,
@@ -1691,6 +1750,7 @@ export default function useGame() {
     net: netState,
     hostOnline,
     joinOnline,
+    quickMatch,
     cancelOnline,
     peekStart: () => {
       if (state.screen === "racing" && !showAnswers && content === "blanks") {

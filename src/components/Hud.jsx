@@ -1,4 +1,11 @@
-export default function Hud({ live, mode, muted, onToggleMute }) {
+export default function Hud({
+  live,
+  mode,
+  playerName = "You",
+  botName = "Bot",
+  muted,
+  onToggleMute,
+}) {
   const playerPct = Math.round(live.playerProgress * 100);
   const botPct = Math.round(live.botProgress * 100);
   const isTrial = mode === "trial";
@@ -31,7 +38,9 @@ export default function Hud({ live, mode, muted, onToggleMute }) {
       )}
       <div className="stat stat-wide">
         <div className="progress-row">
-          <span className="stat-label player-label">You</span>
+          <span className="stat-label player-label" title={playerName}>
+            {playerName}
+          </span>
           <div className="bar player-bar">
             <div className="bar-fill player" style={{ width: `${playerPct}%` }} />
           </div>
@@ -39,7 +48,9 @@ export default function Hud({ live, mode, muted, onToggleMute }) {
         </div>
         {mode === "race" && (
           <div className="progress-row">
-            <span className="stat-label bot-label">Bot</span>
+            <span className="stat-label bot-label" title={botName}>
+              {botName}
+            </span>
             <div className="bar bot-bar">
               <div className="bar-fill bot" style={{ width: `${botPct}%` }} />
             </div>

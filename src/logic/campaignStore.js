@@ -2,18 +2,35 @@ import { CAMPAIGN } from "../data/campaign.js";
 
 const KEY = "spellcaster.campaign.v1";
 
-// Shape: { cleared: { [levelId]: bestStars }, gold: number }
+// A starting purse, granted once. Without it a first-time player meets the
+// in-match power-up bar with every button greyed out, which reads as broken
+// rather than as something to save up for.
+const STARTER_GOLD = 45;
+
+// Shape: { cleared: { [levelId]: bestStars }, gold: number, seeded: true }
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
     const data = raw ? JSON.parse(raw) : null;
     if (data && typeof data === "object") {
-      return { cleared: data.cleared ?? {}, gold: data.gold ?? 0 };
+      if (data.seeded) {
+        return { cleared: data.cleared ?? {}, gold: data.gold ?? 0, seeded: true };
+      }
+      // Existing save from before the starter purse — top it up once
+      const topped = {
+        cleared: data.cleared ?? {},
+        gold: (data.gold ?? 0) + STARTER_GOLD,
+        seeded: true,
+      };
+      save(topped);
+      return topped;
     }
   } catch {
     /* storage unavailable */
   }
-  return { cleared: {}, gold: 0 };
+  const fresh = { cleared: {}, gold: STARTER_GOLD, seeded: true };
+  save(fresh);
+  return fresh;
 }
 
 function save(state) {

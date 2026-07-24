@@ -9,13 +9,20 @@ export default function PowerupBar({ game }) {
   const { coins = 0, danger = false, activePowerups = {} } = game.live;
   const dangerNote =
     game.mode === "race" ? "Falling behind!" : "Low HP — heal up!";
+  const cheapest = Math.min(...list.map((id) => POWERUPS[id].cost));
 
   return (
     <div className={`powerup-bar${danger ? " in-danger" : ""}`}>
-      <span className="powerup-coins" title="Your coins">
+      <span className="powerup-coins" title="Your coins — win matches to earn more">
         🪙 {coins}
       </span>
-      {danger && <span className="powerup-alert">⚠️ {dangerNote}</span>}
+      {danger ? (
+        <span className="powerup-alert">⚠️ {dangerNote}</span>
+      ) : (
+        coins < cheapest && (
+          <span className="powerup-broke">Win matches to earn coins</span>
+        )
+      )}
       <div className="powerup-list">
         {list.map((id, i) => {
           const p = POWERUPS[id];
@@ -28,9 +35,15 @@ export default function PowerupBar({ game }) {
               type="button"
               className={`powerup-btn${active ? " active" : ""}${
                 panic ? " panic" : ""
-              }`}
+              }${!afford && !active ? " broke" : ""}`}
               disabled={!afford || active}
-              title={`${p.name} — ${p.desc} · Alt+${i + 1}`}
+              title={
+                active
+                  ? `${p.name} — active right now`
+                  : afford
+                    ? `${p.name} — ${p.desc} · Alt+${i + 1}`
+                    : `${p.name} — ${p.desc} · needs ${p.cost - coins} more coins`
+              }
               onClick={(e) => {
                 e.currentTarget.blur();
                 game.usePowerup(id);

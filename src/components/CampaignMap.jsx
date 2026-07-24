@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { CAMPAIGN } from "../data/campaign.js";
 import { isLevelUnlocked } from "../logic/campaignStore.js";
 
@@ -20,14 +20,40 @@ function Stars({ n }) {
 export default function CampaignMap({ open, campaign, onStartLevel, onClose }) {
   const reduced = useReducedMotion();
   const cleared = campaign?.cleared ?? {};
+  const listRef = useRef(null);
 
+  const playableRows = () =>
+    listRef.current
+      ? Array.from(listRef.current.querySelectorAll("button:not(:disabled)"))
+      : [];
+
+  // Open onto the level you're actually up to, so Enter or Space plays it
+  useEffect(() => {
+    if (!open) return;
+    const rows = playableRows();
+    const target = rows.find((el) => el.classList.contains("next")) ?? rows[0];
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView({ block: "nearest" });
+  }, [open]);
+
+  // Escape closes; up/down walk the ladder so the whole map is keyboard-driven
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => {
       if (e.key === "Escape") {
         e.preventDefault();
         onClose();
+        return;
       }
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      const rows = playableRows();
+      if (rows.length === 0) return;
+      e.preventDefault();
+      const at = rows.indexOf(document.activeElement);
+      const dir = e.key === "ArrowDown" ? 1 : -1;
+      const next = rows[Math.min(rows.length - 1, Math.max(0, at + dir))] ?? rows[0];
+      next.focus({ preventScroll: true });
+      next.scrollIntoView({ block: "nearest" });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -66,14 +92,13 @@ export default function CampaignMap({ open, campaign, onStartLevel, onClose }) {
                   className="account-close"
                   onClick={onClose}
                   aria-label="Close"
-                  autoFocus
                 >
                   ✕
                 </button>
               </div>
             </div>
 
-            <ul className="lvl-list">
+            <ul className="lvl-list" ref={listRef}>
               {CAMPAIGN.map((level, i) => {
                 const stars = cleared[level.id] ?? 0;
                 const unlocked = isLevelUnlocked(i, cleared);

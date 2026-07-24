@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
+import { isConfirmKey } from "../logic/keys.js";
 import { MODES, MODE_GROUPS } from "../logic/machine.js";
 import { BATTLE_STYLES } from "../logic/battle.js";
 import { BOT_DIFFICULTIES, DIFFICULTY_ORDER } from "../logic/race.js";
@@ -38,6 +39,13 @@ function step(order, current, dir) {
   return order[next];
 }
 
+// Clicking an option should not leave it holding focus, or the next Enter /
+// Space press re-clicks that button instead of confirming the menu
+const pick = (fn) => (e) => {
+  e.currentTarget.blur();
+  fn();
+};
+
 export default function Menu({
   best,
   selectedMode,
@@ -55,6 +63,7 @@ export default function Menu({
   net,
   onHostOnline,
   onJoinOnline,
+  onQuickMatch,
   onCancelOnline,
   user,
   onSignIn,
@@ -112,15 +121,34 @@ export default function Menu({
     setCampaignOpen(true);
   };
 
-  // Full keyboard navigation: up/down pick a row, left/right change its value
+  // What Enter / Space does from wherever you are in the menu
+  const confirm = () => {
+    if (isCampaign) {
+      setCampaignOpen(true);
+      return;
+    }
+    if (isOnline) {
+      // Idle lobby only — mid-search or mid-connect, let it run
+      if (net.status === "idle" || net.status === "error") onQuickMatch();
+      return;
+    }
+    onStart();
+  };
+  const confirmRef = useRef(confirm);
+  confirmRef.current = confirm;
+
+  // Full keyboard navigation: up/down pick a row, left/right change its
+  // value, Enter or Space confirms
   useEffect(() => {
     const onKey = (e) => {
-      if (overlayOpenRef.current) return;
-      const tag = e.target?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (e.key === "Enter" && isCampaign) {
+      if (overlayOpenRef.current || document.body.dataset.menuLock) return;
+      const el = e.target instanceof HTMLElement ? e.target : null;
+      if (el?.closest("input, textarea, select")) return;
+      if (isConfirmKey(e)) {
+        // A focused button activates itself — don't fire twice
+        if (el?.closest("button, a[href]")) return;
         e.preventDefault();
-        setCampaignOpen(true);
+        confirmRef.current();
         return;
       }
       if (e.key === "ArrowUp") {
@@ -159,7 +187,6 @@ export default function Menu({
     content,
     battleStyle,
     isBattleLike,
-    isCampaign,
     onSelectMode,
     onSelectDifficulty,
     onSelectContent,
@@ -211,7 +238,7 @@ export default function Menu({
             role="tab"
             aria-selected={activeTab === g.id}
             className={`mode-tab ${activeTab === g.id ? "active" : ""}`}
-            onClick={() => selectTab(g.id)}
+            onClick={pick(() => selectTab(g.id))}
           >
             {g.label}
           </button>
@@ -237,7 +264,7 @@ export default function Menu({
                   key={id}
                   type="button"
                   className={`diff-btn ${difficulty === id ? "selected" : ""}`}
-                  onClick={() => onSelectDifficulty(id)}
+                  onClick={pick(() => onSelectDifficulty(id))}
                 >
                   {profile.label} &middot; {profile.baseWpm} WPM
                 </button>
@@ -256,7 +283,7 @@ export default function Menu({
                 key={style.id}
                 type="button"
                 className={`content-btn ${battleStyle === style.id ? "selected" : ""}`}
-                onClick={() => onSelectBattleStyle(style.id)}
+                onClick={pick(() => onSelectBattleStyle(style.id))}
                 title={style.desc}
               >
                 {style.label}
@@ -273,7 +300,7 @@ export default function Menu({
                 key={type.id}
                 type="button"
                 className={`content-btn ${content === type.id ? "selected" : ""}`}
-                onClick={() => onSelectContent(type.id)}
+                onClick={pick(() => onSelectContent(type.id))}
               >
                 {type.label}
               </button>
@@ -289,6 +316,7 @@ export default function Menu({
             net={net}
             onHost={onHostOnline}
             onJoin={onJoinOnline}
+            onQuickMatch={onQuickMatch}
             onCancel={onCancelOnline}
           />
         </>
@@ -330,7 +358,7 @@ export default function Menu({
           <>
             <li>Beat each wizard to unlock the next — hordes throw several foes at you</li>
             <li>Win to earn 🪙 gold · spend it mid-duel on potions, shields &amp; 2× damage</li>
-            <li>Arrow keys navigate · Enter opens the campaign · Esc pauses a duel</li>
+            <li>Arrow keys navigate · Enter or Space opens the campaign · Esc pauses a duel</li>
           </>
         ) : isBattle ? (
           <>
@@ -338,7 +366,10 @@ export default function Menu({
               <li>Grab a friend! Take turns — pick a spell, type it, pass the keyboard</li>
             )}
             {isOnline && (
-              <li>Duel a friend anywhere — both cast at once, first to drop the other&apos;s HP wins</li>
+              <li>
+                Quick Match drops you straight into a duel with whoever else is
+                online — or share a code to fight a friend
+              </li>
             )}
             {selectedMode === "battle" && (
               <li>Spend 🪙 coins mid-fight on a health potion, shield, 2× damage or a foe freeze</li>
@@ -346,8 +377,8 @@ export default function Menu({
             <li>Pick spells with 1&ndash;5 — stronger spells take longer to type</li>
             <li>
               {isOnline
-                ? "Arrow keys navigate · Esc leaves the duel"
-                : "Arrow keys navigate · Enter starts · Esc pauses"}
+                ? "Enter or Space finds a quick match · Esc leaves the duel"
+                : "Arrow keys navigate · Enter or Space starts · Esc pauses"}
             </li>
           </>
         ) : (
@@ -362,7 +393,7 @@ export default function Menu({
             {selectedMode === "race" && (
               <li>Losing to the bot? Spend 🪙 coins on Auto-Cast, a Surge or a bot Trip</li>
             )}
-            <li>Arrow keys navigate · Enter starts · Esc pauses</li>
+            <li>Arrow keys navigate · Enter or Space starts · Esc pauses</li>
           </>
         )}
       </ul>

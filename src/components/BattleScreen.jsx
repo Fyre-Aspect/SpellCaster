@@ -18,19 +18,39 @@ function castPopText(cast) {
   return `${spell.icon} -${cast.amount}${cast.crit ? " CRIT!" : ""}`;
 }
 
-function HpCard({ label, hp, max, tone, shield = 0, poisonLeft = 0, active }) {
+function HpCard({
+  label,
+  photo,
+  badge,
+  hp,
+  max,
+  tone,
+  shield = 0,
+  poisonLeft = 0,
+  active,
+}) {
   const pct = Math.max(0, Math.min(100, (hp / max) * 100));
+  const low = pct <= 33;
   return (
     <div className={`hp-card ${tone} ${active ? "active-turn" : ""}`}>
       <div className="hp-head">
-        <span className="hp-name">{label}</span>
+        <span className="hp-who">
+          {photo ? (
+            <img className="hp-avatar" src={photo} alt="" referrerPolicy="no-referrer" />
+          ) : (
+            <span className="hp-avatar hp-avatar-fallback">{badge}</span>
+          )}
+          <span className="hp-name" title={label}>
+            {label}
+          </span>
+        </span>
         <span className="hp-value">
           {hp}/{max}
           {shield > 0 && <span className="hp-shield">🛡{shield}</span>}
           {poisonLeft > 0 && <span className="hp-poison">🐍{poisonLeft}s</span>}
         </span>
       </div>
-      <div className={`bar hp-bar ${tone}`}>
+      <div className={`bar hp-bar ${tone}${low ? " low" : ""}`}>
         <div className={`bar-fill ${tone}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -56,17 +76,24 @@ function CastPop({ cast, side, reduced }) {
   );
 }
 
-export default function BattleScreen({ game }) {
+export default function BattleScreen({ game, user }) {
   const reduced = useReducedMotion();
   const b = game.live.battle;
   if (!b) return null;
   const pvp = b.pvp;
   const online = b.online;
-  const labels = pvp
-    ? { player: "P1", enemy: "P2" }
+  // Real names on both plates: yours from the account, theirs from the
+  // campaign foe, the rival roster, or the online opponent's greeting
+  const playerName = pvp ? "Player 1" : (b.playerName ?? "You");
+  const enemyName = pvp
+    ? "Player 2"
     : online
-      ? { player: "YOU", enemy: "FOE" }
-      : { player: "YOU", enemy: "RIVAL" };
+      ? (b.enemyName ?? "Opponent")
+      : (b.enemyName ?? "Rival");
+  const labels = {
+    player: playerName.toUpperCase(),
+    enemy: enemyName.toUpperCase(),
+  };
   const finished = game.screen === "finished";
   const winner = game.result?.winner ?? "player";
   const enemySpell = b.enemyCast ? SPELLS[b.enemyCast.spellId] : null;
@@ -115,7 +142,9 @@ export default function BattleScreen({ game }) {
         <div className="battle-overlay">
           <div className="hp-side left">
             <HpCard
-              label={pvp ? "🧙 Player 1" : "🧙 You"}
+              label={playerName}
+              photo={pvp ? null : user?.photo}
+              badge={pvp ? "1" : playerName.charAt(0).toUpperCase()}
               hp={b.playerHp}
               max={b.playerMax}
               tone="player"
@@ -125,17 +154,13 @@ export default function BattleScreen({ game }) {
             />
             <CastPop cast={leftPop} side="left" reduced={reduced} />
           </div>
+          <div className="versus-chip" aria-hidden="true">
+            VS
+          </div>
           <div className="hp-side right">
             <HpCard
-              label={
-                pvp
-                  ? "🧙 Player 2"
-                  : online
-                    ? "🧙 Opponent"
-                    : b.enemyName
-                      ? `🧙 ${b.enemyName}`
-                      : "🧛 Rival"
-              }
+              label={enemyName}
+              badge={pvp ? "2" : (b.campaign?.icon ?? enemyName.charAt(0).toUpperCase())}
               hp={b.enemyHp}
               max={b.enemyMax}
               tone="bot"
@@ -162,8 +187,7 @@ export default function BattleScreen({ game }) {
         ) : enemySpell ? (
           <>
             <span>
-              ⚠️ {online ? "Opponent" : (b.enemyName ?? "Rival")} is casting{" "}
-              <strong>{enemySpell.name}</strong>
+              ⚠️ {enemyName} is casting <strong>{enemySpell.name}</strong>
             </span>
             <div className="bar telegraph-bar">
               <div
@@ -175,8 +199,8 @@ export default function BattleScreen({ game }) {
         ) : (
           <span className="telegraph-idle">
             {online
-              ? "Cast fast — your opponent is too!"
-              : `${b.enemyName ?? "Rival"} is thinking…`}
+              ? `Cast fast — ${enemyName} is casting too!`
+              : `${enemyName} is thinking…`}
           </span>
         )}
       </div>
@@ -210,6 +234,19 @@ export default function BattleScreen({ game }) {
           <p className="pick-spell-hint">
             Press 1–5 or click a card — type it fast and clean to hit harder
           </p>
+          <ul className="pick-spell-tips">
+            <li>
+              <strong>Accuracy × speed</strong> sets how hard the spell lands
+            </li>
+            <li>
+              A flawless, fast cast <strong>CRITS</strong> for half again as much
+            </li>
+            <li>
+              {game.mode === "battle"
+                ? "In trouble? Spend coins below — or press Alt+1–4"
+                : "Longer incantations hit harder but take longer to type"}
+            </li>
+          </ul>
         </div>
       )}
       {game.mode === "battle" && <PowerupBar game={game} />}

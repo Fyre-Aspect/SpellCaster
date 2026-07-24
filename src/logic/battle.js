@@ -128,11 +128,31 @@ function pickEnemySpell(b, random) {
   return "firebolt";
 }
 
+// Quick-duel rivals get a name so the arena has somebody in it rather than
+// a generic "Rival"
+const RIVAL_NAMES = [
+  "Morgrim",
+  "Vexa",
+  "Thornwick",
+  "Silias",
+  "Nyx",
+  "Barnaby Ash",
+  "Grelda",
+  "Ivo the Pale",
+  "Marrow",
+  "Zephyra",
+];
+
+export function randomRivalName(random = Math.random) {
+  return RIVAL_NAMES[Math.floor(random() * RIVAL_NAMES.length)];
+}
+
 export function createBattle(difficultyId, random = Math.random) {
   const tier = ENEMY_TIERS[difficultyId] ?? ENEMY_TIERS.medium;
   return {
     pvp: false,
     difficulty: difficultyId,
+    enemyName: randomRivalName(random),
     playerHp: 100,
     playerMax: 100,
     playerShield: 0,
@@ -220,10 +240,11 @@ export function createPvpBattle() {
 // Internet duel: both wizards cast at once. The remote player's HP, shield,
 // and poison are authoritative on their machine and mirrored here via
 // network state messages; we only simulate our own side.
-export function createOnlineBattle() {
+export function createOnlineBattle(enemyName = null) {
   return {
     pvp: false,
     online: true,
+    enemyName,
     playerHp: 100,
     playerMax: 100,
     playerShield: 0,

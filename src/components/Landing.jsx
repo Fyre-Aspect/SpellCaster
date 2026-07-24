@@ -1,16 +1,35 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
-// Drifting magical motes behind the title — purely decorative
+// Drifting magical motes behind the title — CSS-drawn sparkles, no emoji
 const MOTES = [
-  { left: "8%", char: "✦", size: 22, delay: 0, dur: 7, drift: 18 },
-  { left: "18%", char: "✧", size: 14, delay: 1.6, dur: 9, drift: -14 },
-  { left: "30%", char: "✨", size: 20, delay: 0.8, dur: 8, drift: 10 },
-  { left: "44%", char: "✦", size: 12, delay: 2.4, dur: 10, drift: -8 },
-  { left: "58%", char: "✧", size: 24, delay: 0.3, dur: 7.5, drift: 16 },
-  { left: "70%", char: "✨", size: 16, delay: 1.1, dur: 9.5, drift: -12 },
-  { left: "82%", char: "✦", size: 20, delay: 2.0, dur: 8.5, drift: 12 },
-  { left: "92%", char: "✧", size: 13, delay: 0.6, dur: 11, drift: -10 },
+  { left: "8%", size: 18, delay: 0, dur: 7, drift: 18 },
+  { left: "18%", size: 11, delay: 1.6, dur: 9, drift: -14 },
+  { left: "30%", size: 16, delay: 0.8, dur: 8, drift: 10 },
+  { left: "44%", size: 9, delay: 2.4, dur: 10, drift: -8 },
+  { left: "58%", size: 20, delay: 0.3, dur: 7.5, drift: 16 },
+  { left: "70%", size: 13, delay: 1.1, dur: 9.5, drift: -12 },
+  { left: "82%", size: 16, delay: 2.0, dur: 8.5, drift: 12 },
+  { left: "92%", size: 10, delay: 0.6, dur: 11, drift: -10 },
 ];
+
+// The sticker-style wizard hat that crowns the splash screen. Drawn rather
+// than typed so it matches the game's thick-ink look on every platform.
+function WizardHat() {
+  return (
+    <svg className="hat-svg" viewBox="0 0 100 92" role="img" aria-label="Wizard hat">
+      <path
+        className="hat-cone"
+        d="M53 6c-2 16-6 33-13 47-3 6-7 12-11 17h44c-6-11-11-24-14-37-2-9-4-19-6-27z"
+      />
+      <path className="hat-band" d="M39 48h24l5 13H34z" />
+      <ellipse className="hat-brim" cx="50" cy="72" rx="39" ry="10" />
+      <path
+        className="hat-star"
+        d="M52 35.5l2.4 6.1L60.5 44l-6.1 2.4L52 52.5l-2.4-6.1L43.5 44l6.1-2.4z"
+      />
+    </svg>
+  );
+}
 
 function GoogleG() {
   return (
@@ -80,13 +99,16 @@ export default function Landing({
             <motion.span
               key={i}
               className="mote"
-              style={{ left: m.left, fontSize: m.size }}
+              style={{ left: m.left, width: m.size, height: m.size }}
               initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: [0, 0.9, 0.9, 0], y: [40, -220], x: [0, m.drift, 0] }}
+              animate={{
+                opacity: [0, 0.9, 0.9, 0],
+                y: [40, -220],
+                x: [0, m.drift, 0],
+                rotate: [0, 90],
+              }}
               transition={{ duration: m.dur, delay: m.delay, repeat: Infinity, ease: "easeInOut" }}
-            >
-              {m.char}
-            </motion.span>
+            />
           ))}
         </div>
       )}
@@ -97,7 +119,7 @@ export default function Landing({
         animate={reduced ? undefined : { y: [0, -10, 0], rotate: [-4, 4, -4] }}
         transition={reduced ? undefined : { duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
       >
-        🧙
+        <WizardHat />
       </motion.div>
 
       <motion.h1 className="landing-title" variants={rise}>
@@ -121,7 +143,7 @@ export default function Landing({
                   <img className="user-avatar" src={user.photo} alt="" referrerPolicy="no-referrer" />
                 ) : (
                   <span className="user-avatar user-avatar-fallback">
-                    {firstName.charAt(0).toUpperCase() || "🧙"}
+                    {firstName.charAt(0).toUpperCase() || "?"}
                   </span>
                 )}
                 <span className="user-welcome">
@@ -170,7 +192,9 @@ export default function Landing({
       </motion.div>
 
       <motion.p className="landing-hint" variants={rise}>
-        {user ? "Press Enter or tap to begin" : "Sign in to save your progress"}
+        {user
+          ? "Press Enter or Space to begin"
+          : "Sign in to save your progress · Enter or Space to play now"}
       </motion.p>
     </motion.section>
   );

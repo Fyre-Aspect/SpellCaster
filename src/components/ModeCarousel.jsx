@@ -79,6 +79,13 @@ export default function ModeCarousel({ modes = Object.values(MODES), selectedMod
     if (next) onSelectMode(next.id);
   };
 
+  // Picking a card must not leave it focused, or the next Enter / Space
+  // re-clicks the card instead of starting the match
+  const choose = (id) => (e) => {
+    e.currentTarget.blur();
+    onSelectMode(id);
+  };
+
   // Let a vertical wheel scroll the modes horizontally
   useEffect(() => {
     const track = trackRef.current;
@@ -103,7 +110,10 @@ export default function ModeCarousel({ modes = Object.values(MODES), selectedMod
       <button
         type="button"
         className="carousel-arrow left"
-        onClick={() => go(-1)}
+        onClick={(e) => {
+          e.currentTarget.blur();
+          go(-1);
+        }}
         disabled={index <= 0}
         aria-label="Previous mode"
       >
@@ -119,7 +129,7 @@ export default function ModeCarousel({ modes = Object.values(MODES), selectedMod
               slideRefs.current[m.id] = el;
             }}
             className={`mode-slide ${selectedMode === m.id ? "selected" : ""}`}
-            onClick={() => onSelectMode(m.id)}
+            onClick={choose(m.id)}
             aria-pressed={selectedMode === m.id}
           >
             <span className="mode-slide-icon">{MODE_ICONS[m.id] ?? "✨"}</span>
@@ -132,7 +142,10 @@ export default function ModeCarousel({ modes = Object.values(MODES), selectedMod
       <button
         type="button"
         className="carousel-arrow right"
-        onClick={() => go(1)}
+        onClick={(e) => {
+          e.currentTarget.blur();
+          go(1);
+        }}
         disabled={index >= modes.length - 1}
         aria-label="Next mode"
       >
@@ -145,7 +158,7 @@ export default function ModeCarousel({ modes = Object.values(MODES), selectedMod
             key={m.id}
             type="button"
             className={`carousel-dot ${selectedMode === m.id ? "on" : ""}`}
-            onClick={() => onSelectMode(m.id)}
+            onClick={choose(m.id)}
             aria-label={m.label}
           />
         ))}
